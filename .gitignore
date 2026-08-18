@@ -1,0 +1,28 @@
+# Node.js
+node_modules/
+dist/
+build/
+.env
+.env.local
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+*.sqlite3
+
+# IDE & Editor
+.vscode/
+.idea/
+.antigravity/
+*.log
+
+# Pi client offline queue & heavy model checkpoints
+offline_queue/
+runs/
