@@ -26,6 +26,7 @@ A **Raspberry Pi Zero 2 W** equipped with a camera captures video frames on the 
 ---
 ## Contibutions
 1] Darshan.H : Build the entire software.
+
 2] Amar.s : BUild the entire Architecture & entire hardware part integiration
 
 
