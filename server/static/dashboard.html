@@ -1,0 +1,3133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BEL UrbanSense — AI-Powered Mobile Urban Intelligence Platform</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #080c14;
+      color: #f3f4f6;
+      overflow-x: hidden;
+    }
+    h1, h2, h3, h4, .font-heading {
+      font-family: 'Outfit', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Custom Leaflet Dark Styling (Zero Watermark, Sovereign Dark Mode) */
+    .leaflet-container {
+      background: #080c14;
+    }
+    /* Bus Marker Styling (High Visibility Vehicle Glyph & Telemetry) */
+    .custom-bus-symbol, .orig-line-badge-icon, .hazard-callout-icon, .detour-callout-icon, .congestion-circle-icon {
+      background: transparent !important;
+      border: none !important;
+      overflow: visible !important;
+      z-index: 99999 !important;
+      pointer-events: auto !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.96) !important;
+      backdrop-filter: blur(14px);
+      color: #f3f4f6 !important;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.96) !important;
+    }
+
+    /* Pulsing Animation for Live Hazard Markers */
+    @keyframes pulseGlow {
+      0% { transform: scale(0.92); opacity: 0.95; }
+      50% { transform: scale(1.18); opacity: 0.35; }
+      100% { transform: scale(0.92); opacity: 0.95; }
+    }
+    .hazard-pulse-high {
+      animation: pulseGlow 1.4s infinite;
+    }
+    .anpr-pulse {
+      animation: pulseGlow 1.0s infinite;
+    }
+
+    /* Glassmorphism Classes */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(71, 85, 105, 0.6);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.8);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="glass-panel sticky top-0 z-40 px-6 py-3 flex flex-wrap items-center justify-between border-b border-slate-800">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+          <i data-lucide="bus" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-blue-300 bg-clip-text text-transparent font-heading">BEL URBANSENSE</span>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">BHARAT ELECTRONICS LIMITED</span>
+            <span class="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">PUBLIC TRANSPORT FLEET AI</span>
+          </div>
+          <p class="text-xs text-slate-400">AI-Powered Mobile Urban Intelligence Platform Using Public Transport Bus Fleet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Status & Quick Action Buttons -->
+    <div class="flex flex-wrap items-center gap-2.5 mt-2 sm:mt-0">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg glass-card text-xs">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>
+        <span class="font-medium text-slate-300" id="serverStatusText">Edge-AI Fleet Online</span>
+      </div>
+
+      <!-- Demo Playback Toggle -->
+      <button id="btnToggleSim" onclick="toggleSimStream()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+        <i data-lucide="play-circle" class="w-4 h-4"></i>
+        <span id="btnSimStreamText">Open Video Stream (BUS-101)</span>
+      </button>
+
+      <!-- 1-Click Presentation Scenario Triggers -->
+      <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
+        <button onclick="triggerScenario('offending_vehicle')" title="Simulate Hit-and-Run / Rash Driving with ANPR plate extraction" class="px-2.5 py-1 rounded-md bg-rose-600/80 hover:bg-rose-600 text-white font-medium flex items-center gap-1">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+          <span>ANPR Alert</span>
+        </button>
+
+        <button onclick="triggerScenario('traffic_bottleneck')" title="Simulate Vehicle Density Congestion Bottleneck" class="px-2.5 py-1 rounded-md bg-amber-600/80 hover:bg-amber-600 text-white font-medium flex items-center gap-1">
+          <i data-lucide="traffic-cone" class="w-3.5 h-3.5"></i>
+          <span>Bottleneck</span>
+        </button>
+
+        <button onclick="triggerScenario('pedestrian_safety')" title="Simulate School Children / Pedestrian Safety Warning" class="px-2.5 py-1 rounded-md bg-purple-600/80 hover:bg-purple-600 text-white font-medium flex items-center gap-1">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i>
+          <span>School Zone</span>
+        </button>
+
+        <button onclick="triggerScenario('missing_infrastructure')" title="Simulate Missing Road Divider / Zebra Crossing / Signboard" class="px-2.5 py-1 rounded-md bg-cyan-600/80 hover:bg-cyan-600 text-white font-medium flex items-center gap-1">
+          <i data-lucide="split" class="w-3.5 h-3.5"></i>
+          <span>Infra Defect</span>
+        </button>
+      </div>
+
+      <!-- 1-Click Reset Counters for Presentations -->
+      <button onclick="resetTripSession()" title="Reset live session trip counters to 0 for a fresh live demo" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 shadow-sm transition cursor-pointer">
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>Reset Counters (0)</span>
+      </button>
+
+      <!-- Edge AI Offline Badge -->
+      <div class="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-semibold">
+        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+        <span>100% Offline Edge-AI &bull; Kolkata Urban Fleet</span>
+      </div>
+
+      <button onclick="openMobileModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition">
+        <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+        <span>Mobile Node</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= KPI STATS BAR (MATCHING BEL PROBLEM STATEMENT) ================= -->
+  <section class="px-6 py-3.5 grid grid-cols-2 md:grid-cols-5 gap-3 bg-slate-950/60 border-b border-slate-800/80">
+    <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Active Bus Fleet</p>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <h3 class="text-2xl font-extrabold text-cyan-400 font-heading" id="statActiveBuses">2</h3>
+          <span class="text-[10px] text-slate-400 font-mono" id="statActiveBusesSub">Buses On Route</span>
+        </div>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+        <i data-lucide="bus" class="w-5 h-5"></i>
+      </div>
+    </div>
+
+    <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Road & Infra Defects</p>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <h3 class="text-2xl font-extrabold text-rose-400 font-heading" id="statTotalDefects">0</h3>
+          <span class="text-[10px] text-rose-400/80 font-mono" id="statPotholesCount">Potholes/Infra</span>
+        </div>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      </div>
+    </div>
+
+    <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Traffic Congestion</p>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <h3 class="text-2xl font-extrabold text-amber-400 font-heading" id="statCongestion">0</h3>
+          <span class="text-[10px] text-amber-400/80 font-mono" id="statCongestionSub">Bottlenecks</span>
+        </div>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+        <i data-lucide="activity" class="w-5 h-5"></i>
+      </div>
+    </div>
+
+    <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Route Delay (Avg)</p>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <h3 class="text-2xl font-extrabold text-blue-400 font-heading" id="statAvgDelay">2.5</h3>
+          <span class="text-[10px] text-slate-400 font-mono" id="statAvgDelaySub">Minutes</span>
+        </div>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+        <i data-lucide="clock" class="w-5 h-5"></i>
+      </div>
+    </div>
+
+    <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">ANPR / Safety Alerts</p>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <h3 class="text-2xl font-extrabold text-purple-400 font-heading" id="statOffending">0</h3>
+          <span class="text-[10px] text-purple-400/80 font-mono" id="statOffendingSub">Rash Driving</span>
+        </div>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAIN CONTENT SPLIT VIEW ================= -->
+  <main class="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    
+    <!-- LEFT: GIS MAP & URBAN OPERATIONS CONSOLE (7 cols on desktop, order-2 on mobile) -->
+    <div class="lg:col-span-7 flex flex-col gap-4 order-2 lg:order-1">
+      
+      <!-- Leaflet Map Container -->
+      <div class="glass-card p-4 rounded-2xl flex flex-col relative min-h-[480px]">
+        <!-- Map Controls Header -->
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="map" class="w-4 h-4 text-cyan-400"></i>
+            <span class="text-sm font-bold tracking-wide uppercase text-slate-200">Centralized Urban GIS Command Map</span>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <!-- Basemap Style Switcher (Carto Dark Previous vs Clean Dark) -->
+            <div class="flex items-center gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 text-[11px] font-mono">
+              <button onclick="switchBasemap('carto')" id="btn-basemap-carto" class="px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 font-bold border border-blue-500/40">
+                Carto Dark (Previous)
+              </button>
+              <button onclick="switchBasemap('clean')" id="btn-basemap-clean" class="px-2 py-0.5 rounded text-slate-400 hover:text-white border border-transparent">
+                Clean Dark
+              </button>
+            </div>
+
+            <!-- Multi-Layer GIS Filter Toggles -->
+            <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800 text-xs">
+              <button onclick="setLayerFilter('all')" class="layer-btn active px-2.5 py-1 rounded text-cyan-300 bg-cyan-600/30 font-medium" id="layer-all">All Layers</button>
+              <button onclick="setLayerFilter('fleet')" class="layer-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium" id="layer-fleet">🚌 Bus Fleet</button>
+              <button onclick="setLayerFilter('defects')" class="layer-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium" id="layer-defects">🚧 Road Defects</button>
+              <button onclick="setLayerFilter('congestion')" class="layer-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium" id="layer-congestion">🚦 Traffic</button>
+              <button onclick="setLayerFilter('anpr')" class="layer-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium" id="layer-anpr">🚨 ANPR Alerts</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bus Route Corridors & Dynamic Rerouting Control Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 p-2 mb-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[10px] text-slate-400 font-mono uppercase mr-1">Corridor Filter:</span>
+            <button onclick="selectBusRoute('ALL')" class="route-filter-btn active px-2.5 py-1 rounded bg-cyan-600/30 text-cyan-300 font-medium text-[11px] border border-cyan-500/40" id="route-btn-ALL">All Routes</button>
+            <button onclick="selectBusRoute('BUS-101')" class="route-filter-btn px-2.5 py-1 rounded text-slate-400 hover:text-white font-medium text-[11px] border border-transparent" id="route-btn-BUS-101">BUS-101 (EM Bypass)</button>
+            <button onclick="selectBusRoute('BUS-104')" class="route-filter-btn px-2.5 py-1 rounded text-slate-400 hover:text-white font-medium text-[11px] border border-transparent" id="route-btn-BUS-104">BUS-104 (VIP Rd &bull; Traffic)</button>
+            <button onclick="selectBusRoute('MOBILE-CAM')" class="route-filter-btn px-2.5 py-1 rounded text-slate-400 hover:text-white font-medium text-[11px] border border-transparent" id="route-btn-MOBILE-CAM">📱 Mobile Cam Node</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btnQuickLocate101" onclick="locateBus('BUS-101')" class="px-2.5 py-1 rounded bg-cyan-600/30 text-cyan-200 border-2 border-cyan-400 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-cyan-500/30 transition cursor-pointer">
+              <span class="text-sm">🎯</span>
+              <span>Locate BUS-101</span>
+            </button>
+            <button id="btnQuickLocate104" onclick="locateBus('BUS-104')" class="px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-amber-300 transition cursor-pointer">
+              <span class="text-sm">🎯</span>
+              <span>Locate BUS-104</span>
+            </button>
+            <button id="btnQuickLocateMobile" onclick="locateBus('MOBILE-CAM')" class="px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-emerald-300 transition cursor-pointer">
+              <span class="text-sm">📱</span>
+              <span>Locate Mobile Cam</span>
+            </button>
+            <button id="btnToggleReroute" onclick="toggleCurrentBusReroute()" class="px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 hover:bg-amber-500/30 transition shadow-sm">
+              <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+              <span id="btnToggleRerouteText">Simulate Route Diversion (BUS-101)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Route Diversion Alert Banner -->
+        <div id="routeDiversionBanner" class="hidden p-3 mb-2.5 rounded-xl bg-gradient-to-r from-amber-950/90 via-slate-900/90 to-rose-950/80 border border-amber-500/60 shadow-lg shadow-amber-950/40 text-xs transition-all duration-300">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 animate-pulse">
+                <i data-lucide="shuffle" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-amber-200 tracking-wide uppercase font-heading" id="rerouteBannerTitle">AUTONOMOUS ROUTE DIVERSION ACTIVATED</span>
+                  <span class="text-[9px] font-mono bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded border border-amber-500/50 font-extrabold uppercase">DETOUR ENFORCED</span>
+                </div>
+                <p class="text-[11px] text-slate-300 mt-0.5" id="rerouteBannerSub">
+                  Bus BUS-101 detour active: Bypassing severe road craters & waterlogged segment via EM Bypass Connector.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="zoomToDetour()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono border border-slate-700">
+                Inspect Detour
+              </button>
+              <button onclick="toggleCurrentBusReroute()" class="px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold">
+                Resume Scheduled Route
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leaflet Map Div with Floating Locator HUD & Route Symbology Card -->
+        <div class="relative w-full flex-1 rounded-xl overflow-hidden border border-slate-800 min-h-[400px]">
+          <div id="map" class="w-full h-full min-h-[400px]"></div>
+
+          <!-- Floating Bus Quick Locator Pill on Map (Dynamically tracks checked bus) -->
+          <div class="absolute top-3 left-14 z-[1000] flex items-center gap-2">
+            <button id="mapFloatingLocateBtn" onclick="locateCurrentActiveBus()" class="bg-slate-950/95 hover:bg-cyan-950/90 text-cyan-300 hover:text-white border-2 border-cyan-400 shadow-xl shadow-cyan-500/20 px-3 py-1.5 rounded-xl text-xs font-black font-mono flex items-center gap-2 backdrop-blur-md transition cursor-pointer">
+              <span class="text-base" id="mapFloatingLocateIcon">🚌</span>
+              <span id="mapFloatingLocateText">Locate BUS-101 (EM Bypass)</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            </button>
+          </div>
+
+
+        </div>
+
+        <!-- Map Legend (Previous Clean Design Restored) -->
+        <div class="mt-2.5 flex flex-wrap items-center justify-between text-[11px] text-slate-400 px-1 font-mono gap-y-1">
+          <div class="flex items-center gap-3.5 flex-wrap">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> Active Bus Fleet</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Potholes & Hazards</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping inline-block"></span> Congestion (Yellow Circles)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-cyan-400 inline-block"></span> Scheduled Corridors</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 border-b border-rose-500 border-dashed inline-block"></span> Hazard Segment</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 border-b-2 border-emerald-400 border-dashed inline-block"></span> Detour Changed Lane</span>
+          </div>
+          <span class="text-slate-500">Autonomous Edge GIS &bull; Kolkata Urban Corridors</span>
+        </div>
+      </div>
+
+      <!-- Tabbed Urban Operations Console -->
+      <div class="glass-card p-4 rounded-2xl flex flex-col flex-1">
+        <!-- Navigation Tabs -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+          <div class="flex items-center gap-2 text-xs">
+            <button onclick="switchTab('feed')" class="op-tab active px-3 py-1.5 rounded-lg bg-blue-600/30 text-blue-300 font-semibold flex items-center gap-1.5" id="tab-feed">
+              <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+              <span>Live Sensing Feed</span>
+            </button>
+            <button onclick="switchTab('fleet')" class="op-tab px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1.5" id="tab-fleet">
+              <i data-lucide="bus" class="w-3.5 h-3.5"></i>
+              <span>Bus Fleet Matrix</span>
+            </button>
+            <button onclick="switchTab('traffic')" class="op-tab px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1.5" id="tab-traffic">
+              <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+              <span>Traffic & Delay Analytics</span>
+            </button>
+            <button onclick="switchTab('infra')" class="op-tab px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1.5" id="tab-infra">
+              <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+              <span>Infrastructure CRM</span>
+            </button>
+            <button onclick="switchTab('anpr')" class="op-tab px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1.5" id="tab-anpr">
+              <i data-lucide="car" class="w-3.5 h-3.5"></i>
+              <span>ANPR Incident Register</span>
+            </button>
+          </div>
+          <span class="text-xs text-slate-400 font-mono" id="incidentCount">0 events</span>
+        </div>
+
+        <!-- TAB 1: Live Event Feed -->
+        <div id="panel-feed" class="tab-panel space-y-2 max-h-[320px] overflow-y-auto pr-1">
+          <div id="incidentsList" class="space-y-2">
+            <div class="text-xs text-slate-500 text-center py-6">Initializing public transport sensing stream...</div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Fleet Status Matrix -->
+        <div id="panel-fleet" class="tab-panel hidden space-y-2 max-h-[320px] overflow-y-auto">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="glass-card p-3 rounded-xl border-l-4 border-cyan-500 cursor-pointer hover:border-cyan-400 transition" id="card-BUS-101" onclick="locateBus('BUS-101')">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>🚌 BUS-101</span>
+                  <span class="text-[9px] text-cyan-400 font-normal">(EM Bypass)</span>
+                </span>
+                <span id="badge-BUS-101" class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">SCHEDULED</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Route 42A — EM Bypass Arterial (Science City - Ruby)</p>
+              <div class="mt-2 text-[11px] font-mono space-y-0.5 text-slate-300">
+                <div>Speed: <span class="text-cyan-400" id="b101-speed">32.5 km/h</span></div>
+                <div>Status: <span class="text-emerald-400" id="b101-status">Normal Route Flow</span></div>
+                <div>Cameras: Front Windshield (Active)</div>
+              </div>
+              <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between" onclick="event.stopPropagation()">
+                <button onclick="openVideoStream('BUS-101')" class="text-[10px] text-cyan-400 hover:underline font-mono font-bold flex items-center gap-1 cursor-pointer">
+                  <span>📹 Open Video Stream</span>
+                </button>
+                <button onclick="toggleRerouteForBus('BUS-101')" id="btn-reroute-BUS-101" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-semibold hover:bg-amber-500/30">
+                  Divert Route
+                </button>
+              </div>
+            </div>
+
+            <div class="glass-card p-3 rounded-xl border-l-4 border-amber-500 cursor-pointer hover:border-amber-400 transition" id="card-BUS-104" onclick="locateBus('BUS-104')">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>🚌 BUS-104</span>
+                  <span class="text-[9px] text-amber-400 font-normal">(VIP Road)</span>
+                </span>
+                <span id="badge-BUS-104" class="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-mono">SCHEDULED</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Route 18B — VIP Road & Salt Lake Sector V</p>
+              <div class="mt-2 text-[11px] font-mono space-y-0.5 text-slate-300">
+                <div>Speed: <span class="text-amber-400" id="b104-speed">21.0 km/h</span></div>
+                <div>Status: <span class="text-amber-400" id="b104-status">+6.5 min (Heavy Traffic)</span></div>
+                <div>Cameras: Front, Side (Active)</div>
+              </div>
+              <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between" onclick="event.stopPropagation()">
+                <button onclick="openVideoStream('BUS-104')" class="text-[10px] text-amber-400 hover:underline font-mono font-bold flex items-center gap-1 cursor-pointer">
+                  <span>📹 Open Video Stream</span>
+                </button>
+                <button onclick="toggleRerouteForBus('BUS-104')" id="btn-reroute-BUS-104" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-semibold hover:bg-amber-500/30">
+                  Divert Route
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Traffic & Delay Analytics -->
+        <div id="panel-traffic" class="tab-panel hidden space-y-3">
+          <div class="glass-card p-3.5 rounded-xl">
+            <h4 class="text-xs font-bold uppercase text-slate-300 mb-2">Transit Corridor Bottlenecks & Delay Estimation</h4>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/50">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                    <span class="font-bold text-amber-200">🟡 VIP Road Corridor (Original Lane — Route 18B)</span>
+                  </div>
+                  <p class="text-[10px] text-amber-300/80 font-mono mt-0.5">Lake Town Bottleneck (Yellow Circles) | 85% Density | Speed: 8 km/h</p>
+                </div>
+                <div class="text-right">
+                  <span class="text-amber-400 font-bold font-mono">+6.5 min Delay</span>
+                  <span class="block text-[9px] text-amber-400 uppercase font-extrabold">🚨 Original Lane Congestion</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/80 border border-emerald-500/40">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="font-bold text-white">🟢 Broadway Feeder Detour (Changed Lane — Route 18B)</span>
+                  </div>
+                  <p class="text-[10px] text-emerald-300/80 font-mono mt-0.5">Autonomous Bypass | 15% Density | Speed: 34 km/h</p>
+                </div>
+                <div class="text-right">
+                  <span class="text-emerald-400 font-bold font-mono">0 min Delay</span>
+                  <span class="block text-[9px] text-emerald-400 uppercase font-extrabold">✅ Clear Free Flow (Zero Congestion)</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between p-2 rounded bg-slate-900/60">
+                <div>
+                  <span class="font-bold text-white">EM Bypass Arterial (Route 42A)</span>
+                  <p class="text-[10px] text-slate-400 font-mono">Vehicle Density: 48% | Density Index: Moderate</p>
+                </div>
+                <div class="text-right">
+                  <span class="text-amber-400 font-bold font-mono">+1.5 min Delay</span>
+                  <span class="block text-[9px] text-slate-500 uppercase">Moderate Flow</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Infrastructure CRM -->
+        <div id="panel-infra" class="tab-panel hidden space-y-3">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-center">
+            <div class="glass-card p-3 rounded-xl">
+              <p class="text-[10px] text-slate-400 uppercase">Potholes & Craters</p>
+              <h4 class="text-xl font-bold text-rose-400 mt-1 font-mono" id="infraPotholes">0</h4>
+            </div>
+            <div class="glass-card p-3 rounded-xl">
+              <p class="text-[10px] text-slate-400 uppercase">Waterlogging</p>
+              <h4 class="text-xl font-bold text-cyan-400 mt-1 font-mono" id="infraWater">0</h4>
+            </div>
+            <div class="glass-card p-3 rounded-xl">
+              <p class="text-[10px] text-slate-400 uppercase">Missing Dividers</p>
+              <h4 class="text-xl font-bold text-amber-400 mt-1 font-mono" id="infraDividers">0</h4>
+            </div>
+            <div class="glass-card p-3 rounded-xl">
+              <p class="text-[10px] text-slate-400 uppercase">Missing Zebra/Signs</p>
+              <h4 class="text-xl font-bold text-purple-400 mt-1 font-mono" id="infraSigns">0</h4>
+            </div>
+          </div>
+          <div class="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+            <span>Actionable PWD Road Maintenance Work-Order Generation</span>
+            <button onclick="alert('Generated PWD Maintenance Work Order #WO-8841 for Municipal Road Repair Crews!')" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-medium text-xs">
+              Export PWD Work-Order
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 5: ANPR & Offending Vehicle Register -->
+        <div id="panel-anpr" class="tab-panel hidden space-y-2 max-h-[320px] overflow-y-auto">
+          <div id="anprList" class="space-y-2">
+            <div class="text-xs text-slate-500 text-center py-6">No emergency hit-and-run / rash driving incidents registered yet.</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT: MULTI-CAMERA ONBOARD SENSING FEED (5 cols on desktop, order-1 on mobile) -->
+    <div class="lg:col-span-5 flex flex-col gap-4 order-1 lg:order-2">
+      
+      <!-- Multi-Camera Video Player Panel -->
+      <div class="glass-card p-4 rounded-2xl flex flex-col">
+        <!-- Camera Selector Header -->
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i data-lucide="video" class="w-4 h-4 text-cyan-400"></i>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-200">
+              Onboard Camera Stream (<span id="activeCameraBusName" class="text-cyan-400 font-bold">BUS-101 &bull; EM Bypass</span>)
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-semibold" id="cameraStatusBadge">
+              STREAM STANDBY
+            </span>
+            <button id="btnCloseStreamTop" onclick="closeVideoStream()" class="hidden px-2 py-0.5 rounded bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 text-[10px] font-bold font-mono transition cursor-pointer">
+              ⏹ Close Video
+            </button>
+          </div>
+        </div>
+
+        <!-- Bus & Independent Mobile Camera Feed Switcher -->
+        <div class="grid grid-cols-3 gap-1.5 mb-2.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+          <button onclick="openVideoStream('BUS-101')" class="cam-bus-btn active py-1.5 px-2 rounded-lg bg-cyan-600 text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer" id="cambus-BUS-101">
+            <span>🚌 BUS-101</span>
+            <span class="text-[9px] opacity-80">(EM Bypass)</span>
+          </button>
+          <button onclick="openVideoStream('BUS-104')" class="cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer" id="cambus-BUS-104">
+            <span>🚌 BUS-104</span>
+            <span class="text-[9px] text-amber-400 font-semibold">(VIP Road)</span>
+          </button>
+          <button onclick="openVideoStream('MOBILE-CAM')" class="cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex flex-col items-center justify-center gap-0.5 transition cursor-pointer relative" id="cambus-MOBILE-CAM">
+            <div class="flex items-center gap-1">
+              <span>📱 Mobile Cam</span>
+              <span id="mobileCamLiveDot" class="w-2 h-2 rounded-full bg-emerald-400 hidden animate-ping"></span>
+            </div>
+            <span class="text-[9px] text-emerald-400 font-semibold" id="mobileCamSubtext">(Standby)</span>
+          </button>
+        </div>
+
+        <!-- Camera Angle Switcher (BEL Multi-Camera Requirement) -->
+        <div class="grid grid-cols-3 gap-1.5 mb-3 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+          <button onclick="setCameraAngle('front')" class="cam-btn active py-1.5 px-2 rounded-lg bg-cyan-600 text-white font-semibold text-center cursor-pointer" id="cam-front">
+            Front Dashcam
+          </button>
+          <button onclick="setCameraAngle('side')" class="cam-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-slate-200 font-semibold text-center cursor-pointer" id="cam-side">
+            Side Curbside
+          </button>
+          <button onclick="setCameraAngle('rear')" class="cam-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-slate-200 font-semibold text-center cursor-pointer" id="cam-rear">
+            Rear ANPR
+          </button>
+        </div>
+
+        <!-- Mobile Cam Autonomous Perception Status Bar (100% Automatic • Zero Manual Buttons) -->
+        <div id="mobileProblemFocusBar" class="hidden mb-2.5 bg-slate-900/90 p-2.5 rounded-xl border border-emerald-500/40 shadow-lg shadow-emerald-500/10">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-300 px-1">
+            <span class="flex items-center gap-2 text-emerald-400">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span class="font-extrabold tracking-wide">AUTONOMOUS EDGE AI PERCEPTION:</span>
+            </span>
+            <span id="dashFocusLabel" class="text-emerald-300 font-mono font-extrabold bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/50 shadow-sm">SCANNING ROAD...</span>
+          </div>
+          <div class="text-[10px] text-slate-400 mt-1.5 px-1 flex items-center justify-between">
+            <span>Automatic Perception: Potholes, Traffic, Water, Pedestrians, ANPR & Infra</span>
+            <span class="text-emerald-400 font-mono font-bold">100% AUTONOMOUS</span>
+          </div>
+        </div>
+
+        <!-- Live Frame Display -->
+        <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-black/90 border border-slate-800 flex items-center justify-center">
+          <img id="liveFeedImg" class="w-full h-full object-contain hidden" alt="Live Onboard Bus Camera Stream">
+          
+          <div id="noStreamPlaceholder" class="flex flex-col items-center justify-center text-slate-400 p-5 text-center w-full h-full">
+            <div class="w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-2 shadow-lg shadow-cyan-500/10">
+              <i data-lucide="video" class="w-6 h-6"></i>
+            </div>
+            <p class="text-xs font-bold text-slate-200">Onboard Camera Stream Standby</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 max-w-xs">Video is not opened. Select a bus below to open its camera feed and reveal road conditions:</p>
+            <div class="flex flex-wrap items-center justify-center gap-2 mt-3">
+              <button onclick="openVideoStream('BUS-101')" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold font-mono shadow-md flex items-center gap-1.5 transition cursor-pointer">
+                <span>▶ Open BUS-101</span>
+              </button>
+              <button onclick="openVideoStream('BUS-104')" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold font-mono shadow-md flex items-center gap-1.5 transition cursor-pointer">
+                <span>▶ Open BUS-104</span>
+              </button>
+              <button onclick="openVideoStream('MOBILE-CAM')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-mono shadow-md flex items-center gap-1.5 transition cursor-pointer">
+                <span>📱 Open Mobile Cam</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Fleet Hazard Alert Status (Stable fixed height prevents layout shift & vibration) -->
+        <div id="liveAlertBanner" class="mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-emerald-500/30 bg-emerald-950/40 shadow-sm">
+          <div class="flex items-center gap-2.5">
+            <span class="relative flex h-2.5 w-2.5" id="alertIndicatorDot">
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+            </span>
+            <div>
+              <span class="text-xs font-bold text-emerald-200" id="liveAlertText">FLEET SENSING ACTIVE &bull; ALL CLEAR</span>
+              <p class="text-[10px] text-slate-400 font-mono" id="liveAlertSub">Edge AI Autonomous Monitoring Active</p>
+            </div>
+          </div>
+          <span class="text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-semibold" id="liveAlertBadge">NORMAL</span>
+        </div>
+
+        <!-- Telemetry HUD & Bandwidth Footer -->
+        <div class="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] font-mono text-slate-400 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">
+          <div>
+            <span class="text-slate-500 block text-[9px] uppercase">GPS Coordinates</span>
+            <span class="text-cyan-400 font-bold" id="gpsDisplay">22.5726° N, 88.3639° E</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[9px] uppercase">Bus Speed</span>
+            <span class="text-white font-bold" id="speedDisplay">32.5 km/h</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[9px] uppercase">Bandwidth Efficiency</span>
+            <span class="text-emerald-400 font-bold">98.4% Saved</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Incident Detail Card -->
+      <div class="glass-card p-4 rounded-2xl flex-1 flex flex-col justify-between" id="quickInspector">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Selected Event Telemetry</span>
+            <span class="text-[10px] text-slate-400 font-mono" id="inspectorId">#SELECT EVENT</span>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2 text-xs" id="inspectorBody">
+            <p class="text-slate-400 text-center py-4">Click any hazard pin on the map or event in the feed to inspect high-resolution snapshot, ANPR plates, and coordinates.</p>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+          <span class="flex items-center gap-1.5"><i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i> Evidence Authenticated</span>
+          <button onclick="openDetailModalSelected()" class="text-cyan-400 hover:text-cyan-300 font-semibold">Open Full Audit Modal &rarr;</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================= DETAILED AUDIT MODAL (Top z-index so it NEVER hides behind map) ================= -->
+  <div id="detailModal" class="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-2xl rounded-2xl p-6 border border-slate-700 shadow-2xl relative">
+      <button onclick="closeDetailModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-white font-heading">Urban Sensing Incident Audit Record</h3>
+          <p class="text-xs text-slate-400">Incident Reference ID: <span class="font-mono text-cyan-400" id="modalId">#--</span></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Snapshot Image -->
+        <div class="aspect-video bg-black rounded-xl overflow-hidden border border-slate-800">
+          <img id="modalImage" class="w-full h-full object-cover" src="" alt="Incident Snapshot">
+        </div>
+
+        <!-- Metadata -->
+        <div class="space-y-2.5 text-xs">
+          <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+            <span class="text-slate-400 block text-[10px] uppercase">Incident Classification</span>
+            <span class="text-sm font-bold text-white" id="modalType">Road Defect</span>
+          </div>
+
+          <div id="modalAnprBox" class="p-2.5 rounded-lg bg-rose-950/60 border border-rose-500/40 hidden">
+            <span class="text-rose-300 block text-[10px] uppercase font-bold">Extracted License Plate (ANPR)</span>
+            <span class="text-base font-extrabold text-white font-mono" id="modalPlate">AP 29 TA 6828</span>
+            <span class="block text-[10px] text-rose-200 mt-0.5" id="modalPlateConf">Confidence: 96%</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 font-mono">
+            <div class="p-2 rounded bg-slate-900/60">
+              <span class="text-slate-500 block text-[9px]">AI CONFIDENCE</span>
+              <span class="text-cyan-400 font-bold" id="modalConfidence">94%</span>
+            </div>
+            <div class="p-2 rounded bg-slate-900/60">
+              <span class="text-slate-500 block text-[9px]">SEVERITY</span>
+              <span class="text-rose-400 font-bold" id="modalSeverity">HIGH</span>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 font-mono">
+            <span class="text-slate-400 block text-[10px] uppercase">GPS & Timestamp</span>
+            <span class="text-slate-200 block" id="modalGps">--</span>
+            <span class="text-slate-400 text-[10px]" id="modalTime">--</span>
+          </div>
+
+          <div>
+            <label class="text-slate-400 text-[10px] uppercase block mb-1">Municipal Action Status</label>
+            <div class="flex items-center gap-2">
+              <select id="modalStatusSelect" class="bg-slate-900 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs flex-1">
+                <option value="reported">Reported (Action Required)</option>
+                <option value="verified">Verified (Inspection Approved)</option>
+                <option value="fixed">Fixed & Cleared</option>
+              </select>
+              <button onclick="saveStatusChange()" class="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MOBILE NODE MODAL (Top z-index so it NEVER hides behind map) ================= -->
+  <div id="mobileModal" class="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-panel w-full max-w-lg rounded-2xl p-6 border border-slate-700 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeMobileModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-11 h-11 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+          <i data-lucide="smartphone" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white font-heading">Onboard Mobile Sensing Camera Node</h3>
+          <p class="text-xs text-slate-400">Stream live road AI video & GPS directly from any smartphone</p>
+        </div>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <p class="text-slate-300 mb-1.5 font-medium">1. Open this URL on your phone's browser (Chrome / Safari):</p>
+          <div class="flex items-center gap-2">
+            <div class="flex-1 p-3 bg-slate-950 rounded-xl border border-cyan-500/40 font-mono text-cyan-300 break-all select-all text-sm font-bold shadow-inner" id="mobileNodeUrl">
+              Loading Wi-Fi Address...
+            </div>
+            <button onclick="copyMobileUrl()" class="px-3 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition flex items-center gap-1 flex-shrink-0" title="Copy URL">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+              <span id="copyBtnText">Copy</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Make sure your phone is connected to the same Wi-Fi network as this laptop.</p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5">
+          <div class="flex items-center gap-2 font-bold text-xs text-amber-200">
+            <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0 text-amber-400"></i>
+            <span>Why HTTPS & Port 8443 is required:</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-amber-200/90">
+            Mobile browsers (Android Chrome & iOS Safari) <strong>block camera access on plain HTTP</strong> for privacy. 
+            Port 8443 provides the required secure SSL context.
+          </p>
+          <div class="mt-2 pt-2 border-t border-amber-500/20 text-[11px] space-y-1">
+            <p class="font-bold text-white">How to bypass SSL warning on phone:</p>
+            <p>1. When Chrome says <em>"Your connection is not private"</em> &rarr; tap <strong>Advanced</strong>.</p>
+            <p>2. Tap <strong>Proceed to 192.168.1.8 (unsafe)</strong>.</p>
+            <p>3. Tap <strong>Allow</strong> for Camera & Location permissions.</p>
+            <p>4. Tap <strong class="text-emerald-300">START MOBILE CAMERA STREAM</strong> on your phone!</p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] flex items-center justify-between">
+          <span class="text-slate-400">Simulated Road Mode Fallback (HTTP):</span>
+          <a id="mobileHttpFallback" href="http://192.168.1.8:8000/camera" target="_blank" class="text-blue-400 hover:text-blue-300 font-mono underline">
+            http://192.168.1.8:8000/camera
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FLOATING GLOBAL HAZARD TOAST (Top z-index so it NEVER hides behind map) ================= -->
+  <div id="globalNotificationToast" class="fixed top-5 right-5 z-[99999] max-w-sm w-[92vw] sm:w-full bg-slate-900/95 border border-rose-500/70 rounded-2xl p-3.5 shadow-2xl shadow-black/80 backdrop-blur-xl transform -translate-y-24 opacity-0 pointer-events-none transition-all duration-300">
+    <div class="flex items-start gap-3">
+      <div class="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center flex-shrink-0 border border-rose-500/30" id="toastIcon">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between gap-1">
+          <span class="text-xs font-bold text-white uppercase tracking-wide" id="toastTitle">ROAD HAZARD DETECTED</span>
+          <span class="text-[9px] font-mono bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold uppercase" id="toastTag">PRIORITY</span>
+        </div>
+        <p class="text-[11px] text-slate-300 mt-0.5 truncate" id="toastDesc">Pothole on EM Bypass Arterial Corridor, Kolkata</p>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-400">
+          <span id="toastCoords">22.5726° N, 88.3639° E</span>
+          <span id="toastSource" class="text-cyan-400 font-semibold">BUS-101 (Edge AI)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= LOGIC & JAVASCRIPT ================= -->
+  <script>
+    const API_BASE = window.location.origin;
+    const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const WS_BASE = `${WS_PROTOCOL}//${window.location.host}`;
+
+    let map = null;
+    let markersLayer = null;
+    let busMarkers = {};
+    let detectionsList = [];
+    let activeLayerFilter = 'all';
+    let currentCameraAngle = 'front';
+    let selectedDetection = null;
+
+    let fleetBuses = [];
+    let routePolylines = {};
+    let hazardPolylines = {};
+    let detourPolylines = {};
+    let origLineMarkers = {};
+    let hazardMarkers = {};
+    let detourMarkers = {};
+    let selectedBusRoute = 'ALL';
+    let currentCameraBus = 'BUS-101';
+    let userSelectedCameraBus = null;
+    let userSelectedCameraBusTime = 0;
+    let isVideoOpened = false;
+    let activeVideoBus = null;
+    let mobileUnitMarker = null;
+    let mobileAccuracyCircle = null;
+    let mobileCamIsLive = false;
+
+    let lastMapPanTime = 0;
+    let loadDataTimer = null;
+    let toastTimeout = null;
+    let hasInitiallyFocusedBus = false;
+
+    let cartoLayer = null;
+    let esriBaseLayer = null;
+    let esriRefLayer = null;
+    let currentBasemap = 'carto';
+
+    function throttledLoadData() {
+      if (loadDataTimer) clearTimeout(loadDataTimer);
+      loadDataTimer = setTimeout(() => {
+        loadData();
+      }, 1500);
+    }
+
+    function setAlertState(isHazard, subtype = "pothole") {
+      const banner = document.getElementById('liveAlertBanner');
+      const text = document.getElementById('liveAlertText');
+      const sub = document.getElementById('liveAlertSub');
+      const badge = document.getElementById('liveAlertBadge');
+      const dot = document.getElementById('alertIndicatorDot');
+      if (!banner || !text || !badge) return;
+
+      if (isHazard) {
+        const isTraffic = (subtype.includes('congestion') || subtype.includes('bottleneck'));
+        const isAnpr = (subtype.includes('driving') || subtype.includes('speeding') || subtype.includes('tailgating') || subtype.includes('overtake') || subtype.includes('offending'));
+        const isPed = (subtype.includes('pedestrian') || subtype.includes('school') || subtype.includes('children'));
+        const isInfra = (subtype.includes('divider') || subtype.includes('signboard') || subtype.includes('crossing'));
+        const isWater = (subtype === 'waterlogging');
+
+        if (isTraffic) {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-amber-500/60 bg-amber-950/90 shadow-lg shadow-amber-950/40";
+          text.className = "text-xs font-bold text-amber-200";
+          text.innerText = "TRAFFIC CONGESTION & BOTTLENECK DETECTED";
+          sub.className = "text-[10px] text-amber-300/80 font-mono";
+          sub.innerText = "Edge AI Traffic Density: 88% • Vehicle Queue Sensed";
+          badge.className = "text-[10px] font-mono uppercase bg-amber-600/40 text-amber-200 px-2 py-0.5 rounded border border-amber-500/60 font-bold tracking-wider";
+          badge.innerText = "CONGESTION ALERT";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>';
+        } else if (isAnpr) {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-red-500/60 bg-red-950/90 shadow-lg shadow-red-950/40";
+          text.className = "text-xs font-bold text-red-200";
+          text.innerText = `ANPR: ${subtype.replace(/_/g, ' ').toUpperCase()} DETECTED`;
+          sub.className = "text-[10px] text-red-300/80 font-mono";
+          sub.innerText = "HSRP License Plate Extracted • Traffic Violation Recorded";
+          badge.className = "text-[10px] font-mono uppercase bg-red-600/40 text-red-200 px-2 py-0.5 rounded border border-red-500/60 font-bold tracking-wider";
+          badge.innerText = "ANPR VIOLATION";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>';
+        } else if (isWater) {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-sky-500/60 bg-sky-950/90 shadow-lg shadow-sky-950/40";
+          text.className = "text-xs font-bold text-sky-200";
+          text.innerText = "WATERLOGGED ROAD SURFACE DETECTED";
+          sub.className = "text-[10px] text-sky-300/80 font-mono";
+          sub.innerText = "Drainage Overflow • Hydroplaning Hazard Identified";
+          badge.className = "text-[10px] font-mono uppercase bg-sky-600/40 text-sky-200 px-2 py-0.5 rounded border border-sky-500/60 font-bold tracking-wider";
+          badge.innerText = "WATERLOG HAZARD";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>';
+        } else if (isPed) {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-fuchsia-500/60 bg-fuchsia-950/90 shadow-lg shadow-fuchsia-950/40";
+          text.className = "text-xs font-bold text-fuchsia-200";
+          text.innerText = "PEDESTRIAN & SCHOOL ZONE ALERT";
+          sub.className = "text-[10px] text-fuchsia-300/80 font-mono";
+          sub.innerText = "Active Pedestrian Crossing • Speed Reduction Recommended";
+          badge.className = "text-[10px] font-mono uppercase bg-fuchsia-600/40 text-fuchsia-200 px-2 py-0.5 rounded border border-fuchsia-500/60 font-bold tracking-wider";
+          badge.innerText = "PEDESTRIAN ALERT";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-fuchsia-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-fuchsia-500"></span>';
+        } else if (isInfra) {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-orange-500/60 bg-orange-950/90 shadow-lg shadow-orange-950/40";
+          text.className = "text-xs font-bold text-orange-200";
+          text.innerText = `INFRA DEFECT: ${subtype.replace(/_/g, ' ').toUpperCase()}`;
+          sub.className = "text-[10px] text-orange-300/80 font-mono";
+          sub.innerText = "Municipal Asset Inspection Ticket Dispatched";
+          badge.className = "text-[10px] font-mono uppercase bg-orange-600/40 text-orange-200 px-2 py-0.5 rounded border border-orange-500/60 font-bold tracking-wider";
+          badge.innerText = "INFRA DEFECT";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>';
+        } else {
+          banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-rose-500/60 bg-rose-950/90 shadow-lg shadow-rose-950/40";
+          text.className = "text-xs font-bold text-rose-200";
+          text.innerText = `${subtype.replace(/_/g, ' ').toUpperCase()} DETECTED`;
+          sub.className = "text-[10px] text-rose-300/80 font-mono";
+          sub.innerText = "Edge AI Verified • GPS Telemetry Authenticated";
+          badge.className = "text-[10px] font-mono uppercase bg-rose-600/40 text-rose-200 px-2 py-0.5 rounded border border-rose-500/60 font-bold tracking-wider";
+          badge.innerText = "ACTIVE WARNING";
+          if (dot) dot.innerHTML = '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>';
+        }
+      } else {
+        banner.className = "mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-emerald-500/30 bg-emerald-950/40 shadow-sm";
+        text.className = "text-xs font-bold text-emerald-200";
+        text.innerText = "FLEET SENSING ACTIVE • ALL CLEAR";
+        sub.className = "text-[10px] text-slate-400 font-mono";
+        sub.innerText = "Edge AI Autonomous Monitoring Active";
+        badge.className = "text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-semibold";
+        badge.innerText = "NORMAL";
+        if (dot) dot.innerHTML = '<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>';
+      }
+    }
+
+    function showGlobalToast(title, desc, coords, type = "hazard", source = null) {
+      const toast = document.getElementById('globalNotificationToast');
+      if (!toast) return;
+
+      document.getElementById('toastTitle').innerText = title;
+      document.getElementById('toastDesc').innerText = desc;
+      document.getElementById('toastCoords').innerText = coords || "Edge Sensor Verified";
+
+      const srcEl = document.getElementById('toastSource');
+      if (srcEl) {
+        const busName = source || (isVideoOpened ? (activeVideoBus || currentCameraBus) : 'BEL Edge AI');
+        srcEl.innerText = `${busName} (Edge AI)`;
+        if (busName === 'BUS-104') {
+          srcEl.className = 'text-amber-400 font-semibold';
+        } else if (busName === 'MOBILE-CAM') {
+          srcEl.className = 'text-emerald-400 font-semibold';
+        } else {
+          srcEl.className = 'text-cyan-400 font-semibold';
+        }
+      }
+
+      const tag = document.getElementById('toastTag');
+      if (type === "offending_vehicle" || type === "anpr") {
+        tag.innerText = "ANPR ALERT";
+        tag.className = "text-[9px] font-mono bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold uppercase";
+      } else if (type === "traffic_bottleneck" || type === "congestion") {
+        tag.innerText = "BOTTLENECK";
+        tag.className = "text-[9px] font-mono bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold uppercase";
+      } else if (type === "pedestrian_safety") {
+        tag.innerText = "SCHOOL ZONE";
+        tag.className = "text-[9px] font-mono bg-fuchsia-500/20 text-fuchsia-300 px-1.5 py-0.5 rounded font-bold uppercase";
+      } else {
+        tag.innerText = "ROAD HAZARD";
+        tag.className = "text-[9px] font-mono bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-bold uppercase";
+      }
+
+      toast.classList.remove('-translate-y-24', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+        toast.classList.add('-translate-y-24', 'opacity-0', 'pointer-events-none');
+      }, 4000);
+    }
+
+    // 1. Initialize Leaflet GIS Map
+    function initMap() {
+      map = L.map('map', {
+        center: [22.5726, 88.3639],
+        zoom: 13,
+        zoomControl: true,
+        attributionControl: false
+      });
+
+      // CartoDB Dark Matter Basemap (PREVIOUS MAP RESTORED AS DEFAULT)
+      cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd',
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+      }).addTo(map);
+
+      // Clean Dark GIS Canvas (Alternate Option Without Watermarks)
+      esriBaseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        subdomains: ['server', 'services'],
+        attribution: 'BEL UrbanSense GIS'
+      });
+      esriRefLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        subdomains: ['server', 'services'],
+        attribution: ''
+      });
+
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    function switchBasemap(type) {
+      if (!map) return;
+      currentBasemap = type;
+      if (type === 'carto') {
+        if (map.hasLayer(esriBaseLayer)) map.removeLayer(esriBaseLayer);
+        if (map.hasLayer(esriRefLayer)) map.removeLayer(esriRefLayer);
+        if (!map.hasLayer(cartoLayer)) cartoLayer.addTo(map);
+        cartoLayer.bringToBack();
+      } else {
+        if (map.hasLayer(cartoLayer)) map.removeLayer(cartoLayer);
+        if (!map.hasLayer(esriBaseLayer)) esriBaseLayer.addTo(map);
+        if (!map.hasLayer(esriRefLayer)) esriRefLayer.addTo(map);
+        esriBaseLayer.bringToBack();
+      }
+      const bCarto = document.getElementById('btn-basemap-carto');
+      const bClean = document.getElementById('btn-basemap-clean');
+      if (bCarto && bClean) {
+        if (type === 'carto') {
+          bCarto.className = 'px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 font-bold border border-blue-500/40';
+          bClean.className = 'px-2 py-0.5 rounded text-slate-400 hover:text-white border border-transparent';
+        } else {
+          bClean.className = 'px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 font-bold border border-blue-500/40';
+          bCarto.className = 'px-2 py-0.5 rounded text-slate-400 hover:text-white border border-transparent';
+        }
+      }
+    }
+
+    // Live Trip Session Tracker for Presentations (Starts at 0 in Standby; increments 1, 2, 3... live when stream is open)
+    let liveTripStats = {
+      'BUS-101': { defects: 0, congestion: 0, offending: 0, delay: 1.5, incidents: [], anpr: [] },
+      'BUS-104': { defects: 0, congestion: 0, offending: 0, delay: 6.5, incidents: [], anpr: [] },
+      'MOBILE-CAM': { defects: 0, congestion: 0, offending: 0, delay: 0.0, incidents: [], anpr: [] }
+    };
+
+    function resetTripSession(busId = null) {
+      if (busId) {
+        liveTripStats[busId] = { defects: 0, congestion: 0, offending: 0, delay: (busId === 'BUS-104' ? 6.5 : (busId === 'BUS-101' ? 1.5 : 0.0)), incidents: [], anpr: [] };
+      } else {
+        for (const k in liveTripStats) {
+          liveTripStats[k] = { defects: 0, congestion: 0, offending: 0, delay: (k === 'BUS-104' ? 6.5 : (k === 'BUS-101' ? 1.5 : 0.0)), incidents: [], anpr: [] };
+        }
+        detectionsList = [];
+      }
+      updateStatsCards(isVideoOpened ? activeVideoBus : null);
+      renderMarkers();
+      renderIncidentsList();
+      renderAnprList();
+      showGlobalToast("TRIP COUNTERS RESET", "All live session detections reset to 0 for a fresh demonstration run.", "0 Detections", "traffic");
+    }
+
+    // 2. Fetch Initial Data & Telemetry
+    async function loadData() {
+      try {
+        const fleetRes = await fetch(`${API_BASE}/api/fleet`);
+
+        if (fleetRes.ok) {
+          const fleet = await fleetRes.json();
+          updateFleetMarkers(fleet);
+          initOrUpdateFleetRoutes(fleet);
+
+          // Initial auto-focus on primary sensing vehicle BUS-101 so the user instantly sees the bus symbol
+          if (!hasInitiallyFocusedBus && fleet.length > 0) {
+            hasInitiallyFocusedBus = true;
+            const b1 = fleet.find(b => b.id === 'BUS-101') || fleet[0];
+            const lat = b1.current_lat || b1.lat;
+            const lon = b1.current_lon || b1.lon;
+            map.setView([lat, lon], 13);
+            if (busMarkers[b1.id]) {
+              busMarkers[b1.id].openPopup();
+            }
+          }
+        }
+
+        try {
+          const simRes = await fetch(`${API_BASE}/api/sim/stream/status`);
+          if (simRes.ok) {
+            const simData = await simRes.json();
+            isVideoOpened = Boolean(simData.streaming);
+            if (isVideoOpened && simData.active_bus) {
+              activeVideoBus = simData.active_bus;
+              currentCameraBus = simData.active_bus;
+            } else {
+              activeVideoBus = null;
+            }
+            updateStreamUI();
+          }
+        } catch (_) {}
+
+        // Update stats (Shows 0 in Standby, or live trip counts if already streaming)
+        updateStatsCards(isVideoOpened ? activeVideoBus : null);
+        renderIncidentsList();
+        renderAnprList();
+        renderMarkers();
+      } catch (err) {
+        console.warn("Could not load initial platform data:", err);
+      }
+    }
+
+    function updateStatsCards(busId = null) {
+      const activeBus = busId || (isVideoOpened ? activeVideoBus : null);
+
+      const elBuses = document.getElementById('statActiveBuses');
+      const elBusesSub = document.getElementById('statActiveBusesSub');
+      const elDefects = document.getElementById('statTotalDefects');
+      const elDefectsSub = document.getElementById('statPotholesCount');
+      const elCongestion = document.getElementById('statCongestion');
+      const elCongestionSub = document.getElementById('statCongestionSub');
+      const elDelay = document.getElementById('statAvgDelay');
+      const elDelaySub = document.getElementById('statAvgDelaySub');
+      const elOffending = document.getElementById('statOffending');
+      const elOffendingSub = document.getElementById('statOffendingSub');
+
+      const elInfraPotholes = document.getElementById('infraPotholes');
+      const elInfraWater = document.getElementById('infraWater');
+      const elInfraDividers = document.getElementById('infraDividers');
+      const elInfraSigns = document.getElementById('infraSigns');
+
+      if (!isVideoOpened || !activeBus) {
+        // STANDBY: Nothing is actively streaming, so SHOW 0!
+        if (elBuses) elBuses.innerText = '2';
+        if (elBusesSub) elBusesSub.innerText = 'Buses On Standby';
+        if (elDefects) elDefects.innerText = '0';
+        if (elDefectsSub) elDefectsSub.innerText = 'Standby (Stream Off)';
+        if (elCongestion) elCongestion.innerText = '0';
+        if (elCongestionSub) elCongestionSub.innerText = 'Standby (Normal Flow)';
+        if (elDelay) elDelay.innerText = '0.0';
+        if (elDelaySub) elDelaySub.innerText = 'Minutes (Nominal)';
+        if (elOffending) elOffending.innerText = '0';
+        if (elOffendingSub) elOffendingSub.innerText = 'Standby (Idle)';
+
+        if (elInfraPotholes) elInfraPotholes.innerText = '0';
+        if (elInfraWater) elInfraWater.innerText = '0';
+        if (elInfraDividers) elInfraDividers.innerText = '0';
+        if (elInfraSigns) elInfraSigns.innerText = '0';
+        return;
+      }
+
+      // ACTIVE STREAM: Display current trip live detected counts (1, 2, 3...)
+      const bStats = liveTripStats[activeBus] || { defects: 0, congestion: 0, offending: 0, delay: 0.0 };
+
+      if (activeBus === 'BUS-101') {
+        if (elBuses) elBuses.innerText = 'BUS-101';
+        if (elBusesSub) elBusesSub.innerText = 'Route 42A Stream';
+        if (elDefects) elDefects.innerText = bStats.defects;
+        if (elDefectsSub) elDefectsSub.innerText = 'EM Bypass Potholes';
+        if (elCongestion) elCongestion.innerText = bStats.congestion;
+        if (elCongestionSub) elCongestionSub.innerText = 'Corridor Delays';
+        if (elDelay) elDelay.innerText = bStats.delay.toFixed(1);
+        if (elDelaySub) elDelaySub.innerText = 'Minutes (On Schedule)';
+        if (elOffending) elOffending.innerText = bStats.offending;
+        if (elOffendingSub) elOffendingSub.innerText = 'BUS-101 ANPR Alerts';
+      } else if (activeBus === 'BUS-104') {
+        if (elBuses) elBuses.innerText = 'BUS-104';
+        if (elBusesSub) elBusesSub.innerText = 'Route 18B Stream';
+        if (elDefects) elDefects.innerText = bStats.defects;
+        if (elDefectsSub) elDefectsSub.innerText = 'VIP Road Defects';
+        if (elCongestion) elCongestion.innerText = bStats.congestion;
+        if (elCongestionSub) elCongestionSub.innerText = 'VIP Rd Bottlenecks';
+        if (elDelay) elDelay.innerText = bStats.delay.toFixed(1);
+        if (elDelaySub) elDelaySub.innerText = 'Minutes (Congested)';
+        if (elOffending) elOffending.innerText = bStats.offending;
+        if (elOffendingSub) elOffendingSub.innerText = 'BUS-104 ANPR Alerts';
+      } else if (activeBus === 'MOBILE-CAM') {
+        if (elBuses) elBuses.innerText = 'MOBILE';
+        if (elBusesSub) elBusesSub.innerText = 'Edge Node Live';
+        if (elDefects) elDefects.innerText = bStats.defects;
+        if (elDefectsSub) elDefectsSub.innerText = 'Mobile Sensed Defects';
+        if (elCongestion) elCongestion.innerText = bStats.congestion;
+        if (elCongestionSub) elCongestionSub.innerText = 'Mobile Bottlenecks';
+        if (elDelay) elDelay.innerText = '0.0';
+        if (elDelaySub) elDelaySub.innerText = 'Live Sensing Delay';
+        if (elOffending) elOffending.innerText = bStats.offending;
+        if (elOffendingSub) elOffendingSub.innerText = 'Mobile ANPR Alerts';
+      }
+
+      // Infrastructure Tab breakdown counts
+      const busDets = detectionsList.filter(d => d.bus_id === activeBus);
+      const pCount = busDets.filter(d => d.subtype === 'pothole' || d.subtype === 'alligator_cracking').length || bStats.defects;
+      const wCount = busDets.filter(d => d.subtype === 'waterlogging').length;
+      const dCount = busDets.filter(d => d.subtype === 'missing_road_divider').length;
+      const sCount = busDets.filter(d => d.subtype === 'missing_zebra_crossing' || d.subtype === 'missing_signboard').length;
+
+      if (elInfraPotholes) elInfraPotholes.innerText = pCount;
+      if (elInfraWater) elInfraWater.innerText = wCount;
+      if (elInfraDividers) elInfraDividers.innerText = dCount;
+      if (elInfraSigns) elInfraSigns.innerText = sCount;
+    }
+
+    function refreshStatsAndFeeds(busId = null) {
+      updateStatsCards(isVideoOpened ? (busId || activeVideoBus) : null);
+      renderIncidentsList();
+      renderAnprList();
+    }
+
+    // 3. Render Multi-Layer GIS Markers (Potholes & Congestion SHOWN ONLY WHEN RESPECTIVE VIDEO IS OPENED)
+    function renderMarkers() {
+      if (!markersLayer) return;
+      markersLayer.clearLayers();
+
+      const filtered = detectionsList.filter(d => {
+        // Independent Mobile Camera detections:
+        if (d.bus_id === 'MOBILE-CAM') {
+          // Visible when MOBILE-CAM stream is active, or user filtered for MOBILE-CAM, or when all events are shown
+          return (activeVideoBus === 'MOBILE-CAM' || selectedBusRoute === 'MOBILE-CAM' || selectedBusRoute === 'ALL' || !isVideoOpened);
+        }
+
+        // When bus video is NOT opened: ONLY SHOW ORIGINAL LANE! No bus potholes, no bus traffic congestion markers!
+        if (!isVideoOpened) {
+          return false;
+        }
+
+        // Filter strictly by the opened video bus:
+        if (activeVideoBus === 'BUS-101') {
+          // Show potholes and road defects on BUS-101 EM Bypass corridor
+          if (d.bus_id && d.bus_id !== 'BUS-101') return false;
+          if (d.event_type === 'traffic_bottleneck') return false;
+        } else if (activeVideoBus === 'BUS-104') {
+          // Show traffic congestion events on BUS-104 VIP Road corridor
+          if (d.bus_id && d.bus_id !== 'BUS-104') return false;
+        }
+
+        if (activeLayerFilter === 'all') return true;
+        if (activeLayerFilter === 'fleet') return false;
+        if (activeLayerFilter === 'defects') return d.event_type === 'road_defect';
+        if (activeLayerFilter === 'congestion') return d.event_type === 'traffic_bottleneck';
+        if (activeLayerFilter === 'anpr') return d.event_type === 'offending_vehicle';
+        return true;
+      });
+
+      filtered.forEach(det => {
+        const isMobileCam = (det.bus_id === 'MOBILE-CAM');
+        const isCongestion = (det.event_type === 'traffic_bottleneck');
+
+        let bgClass = 'bg-rose-500';
+        let pulseClass = '';
+
+        if (det.event_type === 'offending_vehicle') {
+          bgClass = 'bg-purple-500';
+          pulseClass = 'anpr-pulse';
+        } else if (det.event_type === 'traffic_bottleneck') {
+          bgClass = 'bg-amber-400';
+          pulseClass = 'hazard-pulse-high';
+        } else if (det.event_type === 'pedestrian_safety') {
+          bgClass = 'bg-fuchsia-400';
+          pulseClass = 'hazard-pulse-high';
+        } else if (det.subtype === 'waterlogging') {
+          bgClass = 'bg-cyan-400';
+        } else if (det.subtype === 'missing_road_divider' || det.subtype === 'missing_zebra_crossing') {
+          bgClass = 'bg-blue-400';
+        }
+
+        let iconHtml = '';
+        if (isMobileCam) {
+          iconHtml = isCongestion ? `
+            <div class="relative flex items-center justify-center w-8 h-8 cursor-pointer hover:scale-125 transition" title="Mobile Cam: Traffic Congestion Detected at Exact GPS">
+              <div class="absolute w-8 h-8 rounded-full bg-amber-400 opacity-70 animate-ping"></div>
+              <div class="relative w-5 h-5 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-300 border-2 border-white shadow-[0_0_15px_rgba(251,191,36,1)] flex items-center justify-center text-[10px]">
+                🚗
+              </div>
+            </div>
+          ` : `
+            <div class="relative flex items-center justify-center w-8 h-8 cursor-pointer hover:scale-125 transition" title="Mobile Cam: Pothole Detected at Exact GPS">
+              <div class="absolute w-8 h-8 rounded-full bg-emerald-400 opacity-70 animate-ping"></div>
+              <div class="relative w-5 h-5 rounded-full bg-gradient-to-tr from-rose-600 to-red-400 border-2 border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,1)] flex items-center justify-center text-[10px]">
+                🕳️
+              </div>
+            </div>
+          `;
+        } else if (isCongestion) {
+          iconHtml = `
+            <div class="relative flex items-center justify-center w-7 h-7 cursor-pointer hover:scale-125 transition" title="Traffic Congestion in Original Lane">
+              <div class="absolute w-7 h-7 rounded-full bg-amber-400 opacity-60 animate-ping"></div>
+              <div class="relative w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 border-2 border-yellow-100 shadow-[0_0_12px_rgba(251,191,36,1)]"></div>
+            </div>
+          `;
+        } else {
+          iconHtml = `
+            <div class="relative flex items-center justify-center w-6 h-6">
+              <div class="absolute w-6 h-6 rounded-full ${bgClass} opacity-30 ${pulseClass}"></div>
+              <div class="relative w-3.5 h-3.5 rounded-full ${bgClass} border-2 border-slate-950 shadow-lg"></div>
+            </div>
+          `;
+        }
+
+        const customIcon = L.divIcon({
+          className: isMobileCam ? 'mobile-defect-marker' : (isCongestion ? 'congestion-circle-icon' : 'custom-hazard-marker'),
+          html: iconHtml,
+          iconSize: isMobileCam ? [32, 32] : (isCongestion ? [28, 28] : [24, 24]),
+          iconAnchor: isMobileCam ? [16, 16] : (isCongestion ? [14, 14] : [12, 12])
+        });
+
+        const m = L.marker([det.lat, det.lon], { icon: customIcon });
+
+        if (isMobileCam) {
+          m.bindTooltip(`
+            <div class="text-xs font-mono p-1">
+              <div class="text-emerald-400 font-bold flex items-center gap-1">📱 Mobile Cam Detection</div>
+              <div class="text-white text-[11px] font-bold">${isCongestion ? 'Traffic Congestion' : 'Pothole / Road Defect'}</div>
+              <div class="text-cyan-300 text-[10px] font-bold">Exact GPS: ${det.lat.toFixed(5)}°, ${det.lon.toFixed(5)}°</div>
+            </div>
+          `);
+          m.bindPopup(`
+            <div class="p-2 space-y-1.5 text-xs min-w-[220px]">
+              <div class="flex items-center justify-between border-b border-slate-700/80 pb-1">
+                <span class="font-bold text-emerald-400 uppercase flex items-center gap-1">
+                  <span>📱</span>
+                  <span>MOBILE EDGE DETECTION</span>
+                </span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                  EXACT GPS
+                </span>
+              </div>
+              <div class="font-bold text-white text-sm uppercase">${isCongestion ? '🟡 TRAFFIC CONGESTION' : '🕳️ ROAD POTHOLE'}</div>
+              <div class="text-[10px] font-mono text-cyan-400">Lat/Lon: <b>${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E</b></div>
+              <div class="text-[10px] text-slate-300">Confidence: <b>${Math.round(det.confidence * 100)}%</b> | Severity: <b class="text-rose-400 uppercase">${det.severity}</b></div>
+              <div class="text-[9px] text-slate-400">${new Date(det.timestamp).toLocaleString()}</div>
+              ${det.image_path ? `
+                <div class="mt-1.5 w-full h-24 rounded-lg overflow-hidden border border-slate-700 bg-black">
+                  <img src="${API_BASE}${det.image_path}" class="w-full h-full object-cover">
+                </div>
+              ` : ''}
+              <button onclick="openDetailModalSelected()" class="w-full mt-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-mono border border-slate-700">
+                View Full Forensic Snapshot
+              </button>
+            </div>
+          `);
+        } else if (isCongestion) {
+          m.bindTooltip(`
+            <div class="text-xs font-mono p-1">
+              <div class="text-amber-400 font-bold flex items-center gap-1">🟡 Traffic Congestion (Original Lane)</div>
+              <div class="text-slate-300 text-[10px]">VIP Road Corridor &bull; Lake Town Bottleneck</div>
+              <div class="text-rose-400 text-[10px] font-bold">Speed: 8 km/h &bull; Density: 85% &bull; Delay: +6.5 min</div>
+            </div>
+          `);
+          m.bindPopup(`
+            <div class="p-1 space-y-1 text-xs">
+              <div class="font-bold text-amber-300 uppercase">🟡 TRAFFIC CONGESTION (ORIGINAL LANE)</div>
+              <div class="text-[10px] text-slate-400">${det.road_name || 'VIP Road Corridor, Kolkata'}</div>
+              ${det.plate_number ? `<div class="font-mono text-rose-400 font-bold">ANPR: ${det.plate_number}</div>` : ''}
+              <div class="text-[10px] text-cyan-400">Bus: ${det.bus_id || 'BUS-104'} | Conf: ${Math.round(det.confidence * 100)}%</div>
+            </div>
+          `);
+        } else {
+          m.bindPopup(`
+            <div class="p-1 space-y-1 text-xs">
+              <div class="font-bold text-white uppercase">${det.subtype || det.event_type}</div>
+              <div class="text-[10px] text-slate-400">${det.road_name || 'EM Bypass Corridor, Kolkata'}</div>
+              ${det.plate_number ? `<div class="font-mono text-rose-400 font-bold">ANPR: ${det.plate_number}</div>` : ''}
+              <div class="text-[10px] text-cyan-400">Bus: ${det.bus_id || 'BUS-101'} | Conf: ${Math.round(det.confidence * 100)}%</div>
+            </div>
+          `);
+        }
+
+        m.on('click', () => selectEvent(det));
+        markersLayer.addLayer(m);
+      });
+    }
+
+    // Live Mobile Sensing Unit GPS Marker on Map
+    function updateMobileUnitMarker(lat, lon, speed = 0, accuracy = 5) {
+      if (!map || !lat || !lon) return;
+
+      const mobileHtml = `
+        <div class="relative flex flex-col items-center select-none cursor-pointer" style="width: 140px;">
+          <div class="absolute w-16 h-16 rounded-full bg-emerald-400 opacity-40 animate-ping -top-2 left-1/2 -translate-x-1/2 pointer-events-none"></div>
+          <div class="relative flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950 text-emerald-300 border-2 border-emerald-400 shadow-2xl shadow-emerald-500/50 backdrop-blur-md">
+            <span class="text-xl leading-none filter drop-shadow">📱</span>
+            <div class="flex flex-col text-left">
+              <div class="flex items-center gap-1">
+                <span class="text-xs font-black font-mono tracking-wider leading-tight">MOBILE CAM</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              </div>
+              <span class="text-[8px] font-extrabold text-slate-300 uppercase leading-none">LIVE SENSING</span>
+            </div>
+          </div>
+          <div class="w-3 h-3 rotate-45 -mt-1.5 shadow-md border-r-2 border-b-2 bg-slate-950" style="border-color: #10b981;"></div>
+        </div>
+      `;
+
+      const mobileIcon = L.divIcon({
+        className: 'custom-bus-symbol',
+        html: mobileHtml,
+        iconSize: [140, 52],
+        iconAnchor: [70, 50]
+      });
+
+      const popupHtml = `
+        <div class="p-2 space-y-1.5 min-w-[210px] text-xs">
+          <div class="flex items-center justify-between border-b border-slate-700/80 pb-1">
+            <div class="flex items-center gap-1.5 text-sm font-bold text-emerald-400">
+              <span>📱</span>
+              <span>MOBILE SENSING UNIT</span>
+            </div>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+              ONLINE
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-300">Independent Smartphone Edge Node</div>
+          <div class="text-[11px] font-mono text-cyan-400">Current Speed: <b>${speed} km/h</b></div>
+          <div class="text-[10px] font-mono text-slate-400">Exact GPS: <b>${lat.toFixed(5)}° N, ${lon.toFixed(5)}° E</b></div>
+          <div class="text-[10px] text-slate-400">GPS Accuracy: ±${Math.round(accuracy)}m</div>
+          <button onclick="openVideoStream('MOBILE-CAM')" class="w-full mt-2 py-1.5 px-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-center text-[10px] shadow cursor-pointer transition">
+            📱 View Mobile Camera Feed
+          </button>
+        </div>
+      `;
+
+      if (!mobileUnitMarker) {
+        mobileUnitMarker = L.marker([lat, lon], {
+          icon: mobileIcon,
+          zIndexOffset: 100000
+        }).addTo(map);
+        mobileUnitMarker.bindPopup(popupHtml);
+        mobileUnitMarker.on('click', () => {
+          openVideoStream('MOBILE-CAM');
+        });
+
+        if (accuracy && accuracy < 200) {
+          mobileAccuracyCircle = L.circle([lat, lon], {
+            radius: accuracy,
+            color: '#10b981',
+            weight: 1,
+            fillColor: '#10b981',
+            fillOpacity: 0.12
+          }).addTo(map);
+        }
+      } else {
+        mobileUnitMarker.setLatLng([lat, lon]);
+        mobileUnitMarker.setIcon(mobileIcon);
+        mobileUnitMarker.setPopupContent(popupHtml);
+        if (mobileAccuracyCircle) {
+          mobileAccuracyCircle.setLatLng([lat, lon]);
+          mobileAccuracyCircle.setRadius(accuracy || 10);
+        }
+      }
+    }
+
+    // Update Moving Bus Fleet on Map & Route Visuals
+    function updateFleetMarkers(buses) {
+      if (!map || !buses) return;
+
+      // Safely preserve waypoints if sparse updates arrive
+      if (fleetBuses && fleetBuses.length > 0) {
+        buses.forEach(nb => {
+          const existing = fleetBuses.find(eb => eb.id === nb.id);
+          if (existing) {
+            if (!nb.scheduled_waypoints && existing.scheduled_waypoints) nb.scheduled_waypoints = existing.scheduled_waypoints;
+            if (!nb.hazard_segment && existing.hazard_segment) nb.hazard_segment = existing.hazard_segment;
+            if (!nb.reroute_waypoints && existing.reroute_waypoints) nb.reroute_waypoints = existing.reroute_waypoints;
+            if (!nb.detour_segment && existing.detour_segment) nb.detour_segment = existing.detour_segment;
+            if (!nb.hazard_reason && existing.hazard_reason) nb.hazard_reason = existing.hazard_reason;
+            if (!nb.route_name && existing.route_name) nb.route_name = existing.route_name;
+          }
+        });
+      }
+      fleetBuses = buses;
+
+      buses.forEach(b => {
+        const busId = b.id;
+        const isRerouted = b.is_rerouted;
+        const cardBg = isRerouted ? 'bg-amber-950/95 text-amber-200' : (busId === 'BUS-101' ? 'bg-slate-950 text-cyan-300' : (busId === 'BUS-104' ? 'bg-slate-950 text-amber-300' : 'bg-slate-950 text-purple-300'));
+        const borderCol = isRerouted ? 'border-amber-400 shadow-amber-500/50' : (busId === 'BUS-101' ? 'border-cyan-400 shadow-cyan-500/60' : (busId === 'BUS-104' ? 'border-amber-400 shadow-amber-500/60' : 'border-purple-400 shadow-purple-500/60'));
+        const pingCol = isRerouted ? 'bg-amber-400' : (busId === 'BUS-101' ? 'bg-cyan-400' : (busId === 'BUS-104' ? 'bg-amber-400' : 'bg-purple-400'));
+        const pointerCol = isRerouted ? '#f59e0b' : (busId === 'BUS-101' ? '#06b6d4' : (busId === 'BUS-104' ? '#f59e0b' : '#a855f7'));
+
+        const busHtml = `
+          <div class="relative flex flex-col items-center select-none cursor-pointer" style="width: 130px;">
+            <!-- Pinging Radar Halo -->
+            <div class="absolute w-16 h-16 rounded-full ${pingCol} opacity-40 animate-ping -top-2 left-1/2 -translate-x-1/2 pointer-events-none"></div>
+
+            <!-- Detour Status Badge if Rerouted -->
+            ${isRerouted ? `
+              <div class="mb-1 flex items-center gap-1 bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[9px] font-black uppercase shadow-lg border border-amber-300 animate-bounce whitespace-nowrap">
+                <span>⚠️</span>
+                <span>DETOUR ACTIVE</span>
+              </div>
+            ` : ''}
+
+            <!-- High-Visibility Bus Vehicle Symbol -->
+            <div class="relative flex items-center gap-2 px-2.5 py-1.5 rounded-xl ${cardBg} border-2 ${borderCol} shadow-2xl shadow-black/95 backdrop-blur-md">
+              <span class="text-xl leading-none filter drop-shadow">🚌</span>
+              <div class="flex flex-col text-left">
+                <div class="flex items-center gap-1">
+                  <span class="text-xs font-black font-mono tracking-wider leading-tight">${busId}</span>
+                  <span class="w-2 h-2 rounded-full ${isRerouted ? 'bg-amber-400' : 'bg-emerald-400'} animate-pulse"></span>
+                </div>
+                <span class="text-[8px] font-extrabold text-slate-300 uppercase leading-none">${isRerouted ? 'DIVERTED' : 'ON ROUTE'}</span>
+              </div>
+            </div>
+
+            <!-- Directional Pointer Arrow -->
+            <div class="w-3 h-3 rotate-45 -mt-1.5 shadow-md border-r-2 border-b-2 bg-slate-950" style="border-color: ${pointerCol};"></div>
+          </div>
+        `;
+
+        const busIcon = L.divIcon({
+          className: 'custom-bus-symbol',
+          html: busHtml,
+          iconSize: [130, 52],
+          iconAnchor: [65, 50]
+        });
+
+        const popupHtml = `
+          <div class="p-2 space-y-1.5 min-w-[210px] text-xs">
+            <div class="flex items-center justify-between border-b border-slate-700/80 pb-1">
+              <div class="flex items-center gap-1.5 text-sm font-bold text-white">
+                <span>🚌</span>
+                <span>${busId}</span>
+              </div>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${isRerouted ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'} font-bold">
+                ${isRerouted ? 'DETOUR ACTIVE' : 'SCHEDULED'}
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-300">${b.route_name || 'Active Transit Route'}</div>
+            <div class="text-[11px] font-mono text-cyan-400">Current Speed: <b>${b.speed || 32} km/h</b></div>
+            <div class="text-[10px] font-mono text-slate-400">GPS: ${(b.current_lat || b.lat).toFixed(5)}° N, ${(b.current_lon || b.lon).toFixed(5)}° E</div>
+            ${isRerouted ? `
+              <div class="text-[10px] text-amber-300 font-semibold bg-amber-950/60 p-1.5 rounded border border-amber-500/40">
+                ⚠️ Dynamic Detour: ${busId === 'BUS-104' ? 'Bypassing VIP Road traffic bottleneck' : 'Bypassing road crater hazard segment'}
+              </div>
+            ` : `
+              <div class="text-[10px] text-emerald-400">
+                ✓ Operating on scheduled transit corridor
+              </div>
+            `}
+            <button onclick="openVideoStream('${busId}')" class="w-full mt-2 py-1.5 px-2 rounded ${busId === 'BUS-104' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-cyan-600 hover:bg-cyan-500'} text-white font-bold text-center text-[10px] shadow cursor-pointer transition">
+              📹 Stream ${busId} Live Video
+            </button>
+          </div>
+        `;
+
+        if (!busMarkers[busId]) {
+          busMarkers[busId] = L.marker([b.current_lat || b.lat, b.current_lon || b.lon], { 
+            icon: busIcon,
+            zIndexOffset: 99999 
+          }).addTo(map);
+          busMarkers[busId].bindPopup(popupHtml);
+          busMarkers[busId].on('click', () => {
+            switchCameraBus(busId, false);
+            selectBusRoute(busId, false);
+          });
+        } else {
+          busMarkers[busId].setLatLng([b.current_lat || b.lat, b.current_lon || b.lon]);
+          busMarkers[busId].setIcon(busIcon);
+          busMarkers[busId].setZIndexOffset(99999);
+          busMarkers[busId].setPopupContent(popupHtml);
+        }
+
+        // Update speeds and status in fleet cards
+        const speedEl = document.getElementById(`b${busId.split('-')[1]}-speed`);
+        if (speedEl && b.speed !== undefined) speedEl.innerText = `${b.speed} km/h`;
+      });
+
+      initOrUpdateFleetRoutes(buses);
+    }
+
+    // Ensures the GREEN changed line (detour) ONLY starts from the diverted path, NOT from the trip origin!
+    function getDivertedBranchOnly(scheduled, reroute) {
+      if (!reroute || reroute.length < 2) return reroute || [];
+      if (!scheduled || scheduled.length < 2) return reroute;
+
+      let divIdx = 0;
+      while (divIdx < scheduled.length && divIdx < reroute.length) {
+        const s = scheduled[divIdx];
+        const r = reroute[divIdx];
+        if (Math.abs(s[0] - r[0]) < 0.0002 && Math.abs(s[1] - r[1]) < 0.0002) {
+          divIdx++;
+        } else {
+          break;
+        }
+      }
+
+      // Start from the last common waypoint (the divergence junction point)
+      const startIdx = Math.max(0, divIdx - 1);
+      return reroute.slice(startIdx);
+    }
+
+    // Fleet Routes & Dynamic Detour System
+    // When video is NOT opened: ONLY ORIGINAL LANES are displayed. No changed lanes, no potholes, no traffic congestion!
+    // When respective video is opened: reveals original lane, changed lane, and potholes (BUS-101) or congestion yellow circles (BUS-104).
+    function initOrUpdateFleetRoutes(buses) {
+      if (!map || !buses) return;
+      fleetBuses = buses;
+
+      buses.forEach(b => {
+        const busId = b.id;
+        const isSelected = (selectedBusRoute === 'ALL' || selectedBusRoute === busId);
+        const is104 = (busId === 'BUS-104');
+        const is101 = (busId === 'BUS-101');
+        const isThisBusVideoActive = (isVideoOpened && activeVideoBus === busId);
+
+        // ================= 1. ORIGINAL SCHEDULED LINE =================
+        // Always shown! When video is not opened, both original lanes are clearly visible.
+        const origColor = is101 ? '#06b6d4' : (is104 ? '#f59e0b' : '#a855f7');
+        let origWeight = 5;
+        let origOpacity = 0.90;
+        let origDash = null; // Original scheduled line is solid!
+
+        if (isVideoOpened) {
+          if (isThisBusVideoActive) {
+            origWeight = 5;
+            origOpacity = 0.95;
+            origDash = null;
+          } else {
+            origWeight = 3;
+            origOpacity = 0.35;
+            origDash = '6, 6';
+          }
+        }
+
+        if (!routePolylines[busId] && b.scheduled_waypoints) {
+          routePolylines[busId] = L.polyline(b.scheduled_waypoints, {
+            color: origColor,
+            weight: origWeight,
+            opacity: origOpacity,
+            dashArray: origDash
+          }).addTo(map);
+          const rTitle = is104
+            ? 'BUS-104 Original Line (VIP Road Corridor)'
+            : 'BUS-101 Scheduled Route (EM Bypass Arterial)';
+          routePolylines[busId].bindTooltip(`<b>${rTitle}</b>`);
+          routePolylines[busId].on('click', () => selectBusRoute(busId, false));
+        } else if (routePolylines[busId]) {
+          routePolylines[busId].setStyle({
+            color: origColor,
+            weight: origWeight,
+            opacity: origOpacity,
+            dashArray: origDash
+          });
+        }
+
+        // 1b. Callout badge along Original Line - ONLY FOR BUS-104 WHEN VIDEO IS OPENED
+        if (isVideoOpened && isThisBusVideoActive && is104 && b.scheduled_waypoints && b.scheduled_waypoints.length >= 2) {
+          const oLat = (b.scheduled_waypoints[0][0] + b.scheduled_waypoints[1][0]) / 2;
+          const oLon = (b.scheduled_waypoints[0][1] + b.scheduled_waypoints[1][1]) / 2;
+
+          const oHtml = `
+            <div class="flex items-center gap-1.5 bg-slate-950/95 border-2 border-amber-400 text-amber-300 shadow-2xl px-2.5 py-1 rounded-full text-[10px] font-black font-mono whitespace-nowrap cursor-pointer hover:scale-105 transition">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span>🟡 ORIGINAL LANE (VIP Road Corridor)</span>
+            </div>
+          `;
+          const oIcon = L.divIcon({
+            className: 'orig-line-badge-icon',
+            html: oHtml,
+            iconSize: [240, 26],
+            iconAnchor: [120, 13]
+          });
+
+          if (!origLineMarkers[busId]) {
+            origLineMarkers[busId] = L.marker([oLat, oLon], { icon: oIcon, zIndexOffset: 5000 });
+            origLineMarkers[busId].on('click', () => selectBusRoute(busId, false));
+          } else {
+            origLineMarkers[busId].setIcon(oIcon);
+            origLineMarkers[busId].setLatLng([oLat, oLon]);
+          }
+
+          if (isSelected) {
+            if (!map.hasLayer(origLineMarkers[busId])) origLineMarkers[busId].addTo(map);
+          } else {
+            if (map.hasLayer(origLineMarkers[busId])) map.removeLayer(origLineMarkers[busId]);
+          }
+        } else {
+          // Remove badge when video not opened or not active bus
+          if (origLineMarkers[busId]) {
+            if (map.hasLayer(origLineMarkers[busId])) map.removeLayer(origLineMarkers[busId]);
+            delete origLineMarkers[busId];
+          }
+        }
+
+        // ================= 2. HAZARD / CONGESTION SEGMENT =================
+        // Completely hidden (opacity 0) until respective bus video is opened!
+        let hazOpacity = 0.0;
+        let hazWeight = 6;
+        let hazColor = is104 ? '#f59e0b' : '#ef4444';
+
+        if (isVideoOpened && isThisBusVideoActive) {
+          if (is101) {
+            hazOpacity = (isSelected && b.is_rerouted) ? 0.95 : 0.0;
+          } else if (is104) {
+            hazOpacity = isSelected ? 0.95 : 0.0;
+            hazWeight = 8;
+          }
+        }
+
+        if (!hazardPolylines[busId] && b.hazard_segment) {
+          hazardPolylines[busId] = L.polyline(b.hazard_segment, {
+            color: hazColor,
+            weight: hazWeight,
+            opacity: hazOpacity,
+            dashArray: '5, 5'
+          }).addTo(map);
+          const hazDesc = is104 ? '🟡 Traffic Congestion (VIP Road Original Lane Bottleneck • 8 km/h)' : '⚠️ Road Hazard Crater Segment (EM Bypass)';
+          hazardPolylines[busId].bindTooltip(`<b>${hazDesc}</b>`);
+          hazardPolylines[busId].on('click', () => selectBusRoute(busId, false));
+        } else if (hazardPolylines[busId]) {
+          hazardPolylines[busId].setStyle({
+            color: hazColor,
+            weight: hazWeight,
+            opacity: hazOpacity,
+            dashArray: '5, 5'
+          });
+          if (hazOpacity > 0) hazardPolylines[busId].bringToFront();
+        }
+
+        // 2b. Explicit Traffic Congestion Yellow Circles strictly on Original Lane for BUS-104
+        // ONLY VISIBLE WHEN BUS-104 VIDEO IS OPENED!
+        if (window.b104CongestionCirclesGroup) {
+          window.b104CongestionCirclesGroup.clearLayers();
+        } else {
+          window.b104CongestionCirclesGroup = L.layerGroup().addTo(map);
+        }
+
+        if (isVideoOpened && activeVideoBus === 'BUS-104' && is104 && b.hazard_segment && b.hazard_segment.length >= 2 && isSelected) {
+          const pStart = b.hazard_segment[0];
+          const pEnd = b.hazard_segment[1];
+          const numCircles = 8;
+          for (let i = 0; i < numCircles; i++) {
+            const t = i / (numCircles - 1);
+            const cLat = pStart[0] + (pEnd[0] - pStart[0]) * t;
+            const cLon = pStart[1] + (pEnd[1] - pStart[1]) * t;
+            
+            const cHtml = `
+              <div class="relative flex items-center justify-center w-7 h-7 cursor-pointer hover:scale-125 transition" title="VIP Road Traffic Congestion Queue (Original Lane)">
+                <div class="absolute w-7 h-7 rounded-full bg-amber-400 opacity-60 animate-ping"></div>
+                <div class="relative w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 border-2 border-yellow-100 shadow-[0_0_12px_rgba(251,191,36,1)]"></div>
+              </div>
+            `;
+            const cIcon = L.divIcon({
+              className: 'congestion-circle-icon',
+              html: cHtml,
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            });
+            const cMarker = L.marker([cLat, cLon], { icon: cIcon, zIndexOffset: 8000 });
+            cMarker.bindTooltip(`
+              <div class="text-xs font-mono p-1">
+                <div class="text-amber-300 font-bold flex items-center gap-1">🟡 Traffic Congestion (Original Lane)</div>
+                <div class="text-slate-300 text-[10px]">Location: VIP Road Corridor (Lake Town Bottleneck)</div>
+                <div class="text-rose-400 text-[10px] font-bold">Speed: 8 km/h &bull; Density: 85% &bull; +6.5 min Delay</div>
+                <div class="text-emerald-400 text-[10px] font-bold mt-0.5">Autonomous Detour: Broadway Changed Lane (34 km/h)</div>
+              </div>
+            `);
+            window.b104CongestionCirclesGroup.addLayer(cMarker);
+          }
+        }
+
+        // 2c. Callout badge on Congestion/Hazard segment
+        if (b.hazard_segment && b.hazard_segment.length >= 2) {
+          const midLat = (b.hazard_segment[0][0] + b.hazard_segment[1][0]) / 2;
+          const midLon = (b.hazard_segment[0][1] + b.hazard_segment[1][1]) / 2;
+
+          let shouldShowMarker = false;
+          let calloutHtml = '';
+
+          if (isVideoOpened && isThisBusVideoActive) {
+            if (is101) {
+              shouldShowMarker = isSelected && b.is_rerouted;
+              calloutHtml = `
+                <div class="flex items-center gap-1.5 bg-rose-950/95 text-rose-200 border-2 border-rose-500 shadow-rose-950/90 shadow-2xl animate-bounce px-2.5 py-1 rounded-full text-[10px] font-extrabold font-mono whitespace-nowrap cursor-pointer hover:scale-105 transition">
+                  <span>⚠️</span>
+                  <span>CRATER HAZARD &bull; DETOUR</span>
+                </div>
+              `;
+            } else if (is104) {
+              shouldShowMarker = isSelected;
+              const calloutText = b.is_rerouted
+                ? '🚫 CONGESTION AVOIDED: Changed Lane to Broadway Detour (34 km/h)'
+                : '🟡 TRAFFIC CONGESTION (Yellow Circles in Original Lane • 8 km/h)';
+              const calloutClass = b.is_rerouted
+                ? 'bg-amber-950/95 text-amber-300 border border-amber-500/80 shadow-amber-950/80'
+                : 'bg-amber-950/95 text-amber-200 border-2 border-amber-400 shadow-amber-950/90 shadow-2xl animate-bounce';
+              calloutHtml = `
+                <div class="flex items-center gap-1.5 ${calloutClass} px-2.5 py-1 rounded-full text-[10px] font-extrabold font-mono whitespace-nowrap cursor-pointer hover:scale-105 transition">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                  <span>${calloutText}</span>
+                </div>
+              `;
+            }
+          }
+
+          if (shouldShowMarker) {
+            const hIcon = L.divIcon({
+              className: 'hazard-callout-icon',
+              html: calloutHtml,
+              iconSize: [300, 26],
+              iconAnchor: [150, 13]
+            });
+            if (!hazardMarkers[busId]) {
+              hazardMarkers[busId] = L.marker([midLat, midLon], { icon: hIcon, zIndexOffset: 7000 });
+              hazardMarkers[busId].on('click', () => selectBusRoute(busId, false));
+            } else {
+              hazardMarkers[busId].setIcon(hIcon);
+              hazardMarkers[busId].setLatLng([midLat, midLon]);
+            }
+            if (!map.hasLayer(hazardMarkers[busId])) hazardMarkers[busId].addTo(map);
+          } else {
+            if (hazardMarkers[busId] && map.hasLayer(hazardMarkers[busId])) {
+              map.removeLayer(hazardMarkers[busId]);
+            }
+          }
+        }
+
+        // ================= 3. CHANGED LANE LINE (DETOUR ROUTE) =================
+        // Completely hidden (opacity 0) when video is not opened!
+        let detourOpacity = 0.0;
+        let detourWeight = 5;
+        const detourDash = b.is_rerouted ? '10, 5' : '6, 6';
+
+        if (isVideoOpened && isThisBusVideoActive) {
+          if (is101) {
+            detourOpacity = (isSelected && b.is_rerouted) ? 0.95 : 0.0;
+            detourWeight = 5;
+          } else if (is104) {
+            detourOpacity = b.is_rerouted ? 1.0 : (isSelected ? 0.85 : 0.0);
+            detourWeight = b.is_rerouted ? 7 : 5;
+          }
+        }
+
+        // The GREEN changed line (detour) MUST ONLY START FROM THE DIVERTED PATH!
+        // It must NOT start from the trip origin (Esplanade / Ultadanga) or overlap the blue scheduled line!
+        const detourCoords = (b.detour_segment && b.detour_segment.length >= 2)
+          ? b.detour_segment
+          : getDivertedBranchOnly(b.scheduled_waypoints, b.reroute_waypoints);
+
+        if (!detourPolylines[busId] && detourCoords && detourCoords.length >= 2) {
+          detourPolylines[busId] = L.polyline(detourCoords, {
+            color: '#10b981',
+            weight: detourWeight,
+            opacity: detourOpacity,
+            dashArray: detourDash
+          }).addTo(map);
+          const detDesc = is104
+            ? '🟢 Changed Lane: Broadway Detour (ZERO Traffic Congestion • Clear 34 km/h Flow)'
+            : '🔀 Topsia-Anandapur Detour (Bypassing Craters)';
+          detourPolylines[busId].bindTooltip(`<b>${detDesc}</b>`);
+          detourPolylines[busId].on('click', () => selectBusRoute(busId, false));
+        } else if (detourPolylines[busId]) {
+          if (detourCoords && detourCoords.length >= 2) {
+            detourPolylines[busId].setLatLngs(detourCoords);
+          }
+          detourPolylines[busId].setStyle({
+            color: '#10b981',
+            weight: detourWeight,
+            opacity: detourOpacity,
+            dashArray: detourDash
+          });
+          if (detourOpacity > 0 && b.is_rerouted) detourPolylines[busId].bringToFront();
+        }
+
+        // 3b. Callout badge on Changed Lane Line - ONLY FOR BUS-104 WHEN VIDEO IS OPENED
+        if (isVideoOpened && isThisBusVideoActive && is104 && detourCoords && detourCoords.length >= 2) {
+          const midIdx = Math.floor(detourCoords.length / 2);
+          const dLat = detourCoords[midIdx][0];
+          const dLon = detourCoords[midIdx][1];
+
+          const detourBadgeText = b.is_rerouted
+            ? '✅ ACTIVE CHANGED LANE (Free-Flow Bypass &bull; ZERO Congestion &bull; 34 km/h)'
+            : '🟢 CHANGED LANE (Broadway Detour &bull; ZERO Congestion &bull; Clear 34 km/h)';
+          const detourBadgeClass = b.is_rerouted
+            ? 'bg-emerald-950/95 text-emerald-200 border-2 border-emerald-400 shadow-emerald-950/90 shadow-2xl animate-pulse'
+            : 'bg-slate-950/95 text-emerald-300 border-2 border-emerald-400 shadow-xl';
+
+          const dIcon = L.divIcon({
+            className: 'detour-callout-icon',
+            html: `
+              <div class="flex items-center gap-1.5 ${detourBadgeClass} px-2.5 py-1 rounded-full text-[10px] font-black font-mono whitespace-nowrap cursor-pointer hover:scale-105 transition">
+                <span>${b.is_rerouted ? '✅' : '🟢'}</span>
+                <span>${detourBadgeText}</span>
+              </div>
+            `,
+            iconSize: [330, 26],
+            iconAnchor: [165, 13]
+          });
+
+          if (!detourMarkers[busId]) {
+            detourMarkers[busId] = L.marker([dLat, dLon], { icon: dIcon, zIndexOffset: 6000 });
+            detourMarkers[busId].on('click', () => selectBusRoute(busId, false));
+          } else {
+            detourMarkers[busId].setIcon(dIcon);
+            detourMarkers[busId].setLatLng([dLat, dLon]);
+          }
+
+          if (isSelected) {
+            if (!map.hasLayer(detourMarkers[busId])) detourMarkers[busId].addTo(map);
+          } else {
+            if (map.hasLayer(detourMarkers[busId])) map.removeLayer(detourMarkers[busId]);
+          }
+        } else {
+          // Ensure detour marker is removed when not video active
+          if (detourMarkers[busId]) {
+            if (map.hasLayer(detourMarkers[busId])) map.removeLayer(detourMarkers[busId]);
+            delete detourMarkers[busId];
+          }
+        }
+
+        // 5. Update Tab 2 Fleet Matrix card
+        updateBusCardUI(b);
+      });
+
+      updateRerouteBanner();
+      updateRouteSymbologyHUD(selectedBusRoute === 'ALL' ? (activeVideoBus || currentCameraBus) : selectedBusRoute);
+    }
+
+    function updateBusCardUI(b) {
+      const busId = b.id;
+      const badge = document.getElementById(`badge-${busId}`);
+      const statusEl = document.getElementById(`b${busId.split('-')[1]}-status`);
+      const speedEl = document.getElementById(`b${busId.split('-')[1]}-speed`);
+      const btn = document.getElementById(`btn-reroute-${busId}`);
+
+      if (speedEl && b.speed !== undefined) speedEl.innerText = `${b.speed} km/h`;
+
+      if (b.is_rerouted) {
+        if (badge) {
+          badge.className = "text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-mono font-bold animate-pulse";
+          badge.innerText = "DETOUR ACTIVE";
+        }
+        if (statusEl) {
+          statusEl.className = "text-amber-400 font-bold";
+          statusEl.innerText = busId === 'BUS-104' ? "Diverted: Bypassing Traffic" : "Diverted: Bypassing Craters";
+        }
+        if (btn) {
+          btn.className = "px-2 py-0.5 rounded bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-semibold hover:bg-emerald-600/40";
+          btn.innerText = "Resume Route";
+        }
+      } else {
+        if (badge) {
+          badge.className = "text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-mono";
+          badge.innerText = "SCHEDULED";
+        }
+        if (statusEl) {
+          statusEl.className = "text-emerald-400";
+          statusEl.innerText = "Normal Scheduled Corridor";
+        }
+        if (btn) {
+          btn.className = "px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-semibold hover:bg-amber-500/30";
+          btn.innerText = "Divert Route";
+        }
+      }
+    }
+
+    // Route symbology HUD intentionally removed to keep map clean and unobstructed
+    function updateRouteSymbologyHUD(busId = 'BUS-104') {
+      // No-op: Map remains clean without blocking floating cards
+    }
+
+    function updateRerouteBanner() {
+      const banner = document.getElementById('routeDiversionBanner');
+      if (!banner) return;
+
+      if (!isVideoOpened) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const anyRerouted = fleetBuses.find(b => b.is_rerouted && b.id === (activeVideoBus || currentCameraBus));
+
+      if (anyRerouted) {
+        banner.classList.remove('hidden');
+        if (anyRerouted.id === 'BUS-104') {
+          document.getElementById('rerouteBannerTitle').innerText = `AUTONOMOUS LANE CHANGE DETOUR ACTIVATED (BUS-104)`;
+          document.getElementById('rerouteBannerSub').innerText = `Facing heavy traffic congestion yellow circles on VIP Road original lane, switching to changed lane (Broadway Detour • 34 km/h free flow)!`;
+        } else {
+          document.getElementById('rerouteBannerTitle').innerText = `AUTONOMOUS ROUTE DIVERSION ACTIVATED (${anyRerouted.id})`;
+          document.getElementById('rerouteBannerSub').innerText = `${anyRerouted.id} detour active: ${anyRerouted.hazard_reason || 'Bypassing road craters & hazards'}`;
+        }
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      // Update Top-right button text
+      const targetBusId = activeVideoBus || (selectedBusRoute === 'ALL' ? 'BUS-101' : selectedBusRoute);
+      const targetBus = fleetBuses.find(b => b.id === targetBusId);
+      const isRerouted = targetBus ? targetBus.is_rerouted : false;
+      const btnTxt = document.getElementById('btnToggleRerouteText');
+      if (btnTxt) {
+        btnTxt.innerText = isRerouted ? `Resume Normal Route (${targetBusId})` : `Simulate Route Diversion (${targetBusId})`;
+      }
+    }
+
+    function zoomToDetour() {
+      const anyRerouted = fleetBuses.find(b => b.is_rerouted);
+      if (anyRerouted && anyRerouted.hazard_segment && map) {
+        map.panTo(anyRerouted.hazard_segment[0], { animate: true, duration: 1.2 });
+      }
+    }
+
+    async function switchCameraBus(busId, panMap = false) {
+      if (isVideoOpened && activeVideoBus !== busId) {
+        await openVideoStream(busId);
+        return;
+      }
+      currentCameraBus = busId;
+      userSelectedCameraBus = busId;
+      userSelectedCameraBusTime = Date.now();
+
+      updateStreamUI();
+
+      if (busId === 'MOBILE-CAM') {
+        if (panMap && mobileUnitMarker && map) {
+          map.flyTo(mobileUnitMarker.getLatLng(), 16, { animate: true, duration: 1.2 });
+          mobileUnitMarker.openPopup();
+        }
+        updateMapLocatorButton('MOBILE-CAM');
+        return;
+      }
+
+      // Update Stream Demo Button label to reflect chosen bus
+      const streamTxt = document.getElementById('btnSimStreamText');
+      if (streamTxt) {
+        const isStreaming = streamTxt.innerText.toLowerCase().includes('stop');
+        streamTxt.innerText = isStreaming ? `Stop Fleet Stream (${busId})` : `Play Fleet Stream Demo (${busId})`;
+      }
+
+      // Notify backend simulator
+      try {
+        await fetch(`${API_BASE}/api/sim/select_bus?bus_id=${busId}`, { method: 'POST' });
+      } catch(e) {}
+
+      // Update Top-right button text
+      const targetBus = fleetBuses.find(b => b.id === busId);
+      const isRerouted = targetBus ? targetBus.is_rerouted : false;
+      const btnTxt = document.getElementById('btnToggleRerouteText');
+      if (btnTxt) {
+        btnTxt.innerText = isRerouted ? `Resume Normal Route (${busId})` : `Simulate Route Diversion (${busId})`;
+      }
+
+      if (panMap && targetBus && map) {
+        const lat = targetBus.current_lat || targetBus.lat;
+        const lon = targetBus.current_lon || targetBus.lon;
+        map.flyTo([lat, lon], 14, { animate: true, duration: 1.2 });
+        if (busMarkers[busId]) {
+          busMarkers[busId].openPopup();
+        }
+      }
+
+      updateMapLocatorButton(busId);
+      updateRouteSymbologyHUD(busId);
+    }
+
+    function updateMapLocatorButton(busId) {
+      const mapBtn = document.getElementById('mapFloatingLocateBtn');
+      const mapTxt = document.getElementById('mapFloatingLocateText');
+      const btn101 = document.getElementById('btnQuickLocate101');
+      const btn104 = document.getElementById('btnQuickLocate104');
+      const btnMobile = document.getElementById('btnQuickLocateMobile');
+
+      if (busId === 'MOBILE-CAM') {
+        if (mapTxt) mapTxt.innerText = 'Locate Mobile Cam Node';
+        if (mapBtn) {
+          mapBtn.className = 'bg-slate-950/95 hover:bg-emerald-950/90 text-emerald-300 hover:text-white border-2 border-emerald-400 shadow-xl shadow-emerald-500/20 px-3 py-1.5 rounded-xl text-xs font-black font-mono flex items-center gap-2 backdrop-blur-md transition cursor-pointer';
+          mapBtn.onclick = () => locateBus('MOBILE-CAM');
+        }
+        if (btn101) btn101.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-cyan-300 transition cursor-pointer';
+        if (btn104) btn104.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-amber-300 transition cursor-pointer';
+        if (btnMobile) btnMobile.className = 'px-2.5 py-1 rounded bg-emerald-500/30 text-emerald-200 border-2 border-emerald-400 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/30 transition cursor-pointer';
+      } else if (busId === 'BUS-104') {
+        if (mapTxt) mapTxt.innerText = 'Locate BUS-104 (VIP Rd)';
+        if (mapBtn) {
+          mapBtn.className = 'bg-slate-950/95 hover:bg-amber-950/90 text-amber-300 hover:text-white border-2 border-amber-400 shadow-xl shadow-amber-500/20 px-3 py-1.5 rounded-xl text-xs font-black font-mono flex items-center gap-2 backdrop-blur-md transition cursor-pointer';
+          mapBtn.onclick = () => locateBus('BUS-104');
+        }
+        if (btn104) {
+          btn104.className = 'px-2.5 py-1 rounded bg-amber-500/30 text-amber-200 border-2 border-amber-400 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-amber-500/30 transition cursor-pointer';
+        }
+        if (btn101) {
+          btn101.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-cyan-300 transition cursor-pointer';
+        }
+        if (btnMobile) {
+          btnMobile.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-emerald-300 transition cursor-pointer';
+        }
+      } else {
+        // Default BUS-101
+        if (mapTxt) mapTxt.innerText = 'Locate BUS-101 (EM Bypass)';
+        if (mapBtn) {
+          mapBtn.className = 'bg-slate-950/95 hover:bg-cyan-950/90 text-cyan-300 hover:text-white border-2 border-cyan-400 shadow-xl shadow-cyan-500/20 px-3 py-1.5 rounded-xl text-xs font-black font-mono flex items-center gap-2 backdrop-blur-md transition cursor-pointer';
+          mapBtn.onclick = () => locateBus('BUS-101');
+        }
+        if (btn101) {
+          btn101.className = 'px-2.5 py-1 rounded bg-cyan-600/30 text-cyan-200 border-2 border-cyan-400 text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-cyan-500/30 transition cursor-pointer';
+        }
+        if (btn104) {
+          btn104.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-amber-300 transition cursor-pointer';
+        }
+        if (btnMobile) {
+          btnMobile.className = 'px-2.5 py-1 rounded bg-slate-800/40 text-slate-400 border border-slate-700/50 text-[11px] font-medium flex items-center gap-1.5 hover:text-emerald-300 transition cursor-pointer';
+        }
+      }
+    }
+
+    function locateCurrentActiveBus() {
+      const targetBus = (selectedBusRoute && selectedBusRoute !== 'ALL') ? selectedBusRoute : currentCameraBus;
+      locateBus(targetBus || 'BUS-101');
+    }
+
+    function locateBus(busId = 'BUS-101') {
+      if (busId === 'MOBILE-CAM') {
+        if (mobileUnitMarker && map) {
+          const latLng = mobileUnitMarker.getLatLng();
+          map.flyTo(latLng, 16, { animate: true, duration: 1.2 });
+          mobileUnitMarker.openPopup();
+        } else if (map) {
+          showGlobalToast("MOBILE CAM STANDBY", "Start streaming from camera.html on your smartphone to activate live GPS tracking.", "Mobile Cam", "traffic");
+        }
+        updateMapLocatorButton('MOBILE-CAM');
+        switchCameraBus('MOBILE-CAM', false);
+        return;
+      }
+      const bus = fleetBuses.find(b => b.id === busId);
+      if (!bus || !map) return;
+      const lat = bus.current_lat || bus.lat;
+      const lon = bus.current_lon || bus.lon;
+      map.flyTo([lat, lon], 14, { animate: true, duration: 1.2 });
+      if (busMarkers[busId]) {
+        busMarkers[busId].openPopup();
+      }
+      updateMapLocatorButton(busId);
+      updateRouteSymbologyHUD(busId);
+      switchCameraBus(busId, false);
+      selectBusRoute(busId, false);
+    }
+
+    function selectBusRoute(busId, shouldSwitchCam = true) {
+      selectedBusRoute = busId;
+      document.querySelectorAll('.route-filter-btn').forEach(btn => {
+        btn.className = 'route-filter-btn px-2.5 py-1 rounded text-slate-400 hover:text-white font-medium text-[11px] border border-transparent';
+      });
+      const activeBtn = document.getElementById(`route-btn-${busId}`);
+      if (activeBtn) {
+        if (busId === 'BUS-104') {
+          activeBtn.className = 'route-filter-btn active px-2.5 py-1 rounded bg-amber-600/30 text-amber-300 font-bold text-[11px] border border-amber-500/50 shadow-md shadow-amber-500/20';
+        } else {
+          activeBtn.className = 'route-filter-btn active px-2.5 py-1 rounded bg-cyan-600/30 text-cyan-300 font-bold text-[11px] border border-cyan-500/50 shadow-md shadow-cyan-500/20';
+        }
+      }
+
+      initOrUpdateFleetRoutes(fleetBuses);
+
+      const targetBus = (busId !== 'ALL') ? busId : currentCameraBus;
+      updateMapLocatorButton(targetBus);
+      updateRouteSymbologyHUD(targetBus);
+
+      if (busId !== 'ALL') {
+        const b = fleetBuses.find(x => x.id === busId);
+        if (b && map) {
+          map.panTo([b.current_lat || b.lat, b.current_lon || b.lon], { animate: true, duration: 1 });
+        }
+        if (shouldSwitchCam && (busId === 'BUS-101' || busId === 'BUS-104')) {
+          switchCameraBus(busId, false);
+        }
+      }
+
+      // Keep stats cards and incident lists synchronized with the selected route
+      if (!isVideoOpened) {
+        refreshStatsAndFeeds(busId !== 'ALL' ? busId : null);
+      } else {
+        renderIncidentsList();
+        renderAnprList();
+      }
+    }
+
+    async function toggleRerouteForBus(busId) {
+      const bus = fleetBuses.find(b => b.id === busId);
+      const targetState = bus ? !bus.is_rerouted : true;
+      const defaultReason = (busId === 'BUS-104')
+        ? "Critical Traffic Congestion & Bottleneck Bypass via Canal South Feeder"
+        : "Severe Road Defect & Pothole Hazard Bypass Detour";
+
+      try {
+        const res = await fetch(`${API_BASE}/api/fleet/${busId}/reroute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reroute: targetState, reason: defaultReason })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          if (bus) {
+            bus.is_rerouted = data.is_rerouted;
+            bus.hazard_reason = data.reason;
+          }
+          initOrUpdateFleetRoutes(fleetBuses);
+          const isTraffic = (busId === 'BUS-104');
+          showGlobalToast(
+            data.is_rerouted ? (isTraffic ? "TRAFFIC CONGESTION DIVERSION ACTIVATED" : "ROUTE DIVERSION ACTIVATED") : "SCHEDULED ROUTE RESTORED",
+            `${busId}: ${data.reason}`,
+            bus && bus.hazard_segment ? `${bus.hazard_segment[0][0].toFixed(4)}, ${bus.hazard_segment[0][1].toFixed(4)}` : "Transit Corridor",
+            data.is_rerouted ? (isTraffic ? "congestion" : "hazard") : "traffic"
+          );
+
+          if (data.is_rerouted && bus && bus.hazard_segment && map) {
+            map.panTo(bus.hazard_segment[0], { animate: true, duration: 1.2 });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to toggle reroute:", err);
+      }
+    }
+
+    function toggleCurrentBusReroute() {
+      const targetBus = (selectedBusRoute !== 'ALL') ? selectedBusRoute : currentCameraBus;
+      toggleRerouteForBus(targetBus);
+    }
+
+    // 4. Render Incident Feeds
+    function renderIncidentsList() {
+      const container = document.getElementById('incidentsList');
+      if (!container) return;
+
+      const countEl = document.getElementById('incidentCount');
+
+      if (!isVideoOpened || !activeVideoBus) {
+        if (countEl) countEl.innerText = '0 events logged (Standby)';
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center text-center py-8 px-4 text-slate-500 space-y-2">
+            <div class="w-10 h-10 rounded-full bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-lg">📹</div>
+            <p class="text-xs font-semibold text-slate-400">Camera feeds on standby</p>
+            <p class="text-[11px] text-slate-500 max-w-[240px]">Open BUS-101 / BUS-104 video stream or connect Mobile Cam to begin live edge-AI detection.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const currentBus = activeVideoBus;
+      const filtered = detectionsList.filter(d => d.bus_id === currentBus);
+
+      if (countEl) {
+        countEl.innerText = `${filtered.length} events logged (${currentBus} Live)`;
+      }
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-500 text-center py-8">Scanning ${currentBus} video stream... Edge-AI hazard detection running live.</div>`;
+        return;
+      }
+
+      filtered.slice(0, 50).forEach(det => {
+        let badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+        if (det.event_type === 'offending_vehicle') badgeColor = 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        if (det.event_type === 'traffic_bottleneck') badgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+        if (det.event_type === 'pedestrian_safety') badgeColor = 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30';
+        if (det.status === 'fixed') badgeColor = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+
+        const item = document.createElement('div');
+        item.className = 'glass-card p-2.5 rounded-xl flex items-center justify-between hover:bg-slate-800/60 cursor-pointer transition';
+        item.onclick = () => selectEvent(det);
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg overflow-hidden bg-black border border-slate-800 flex-shrink-0">
+              <img src="${API_BASE}${det.image_path}" class="w-full h-full object-cover" onerror="this.style.display='none'">
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-white">#${det.id} ${(det.subtype || det.event_type).toUpperCase()}</span>
+                <span class="text-[9px] font-bold px-1.5 py-0.2 rounded border ${badgeColor}">${det.status.toUpperCase()}</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">${det.bus_id || 'BUS-101'} &bull; ${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}</span>
+              ${det.plate_number ? `<span class="block text-[10px] font-mono text-purple-300 font-bold">PLATE: ${det.plate_number}</span>` : ''}
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-mono font-bold text-white">${Math.round(det.confidence * 100)}%</span>
+            <p class="text-[9px] text-slate-500">AI Conf</p>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function renderAnprList() {
+      const container = document.getElementById('anprList');
+      if (!container) return;
+
+      if (!isVideoOpened || !activeVideoBus) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center justify-center text-center py-8 px-4 text-slate-500 space-y-2">
+            <div class="w-10 h-10 rounded-full bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-lg">📋</div>
+            <p class="text-xs font-semibold text-slate-400">ANPR Scanner on standby</p>
+            <p class="text-[11px] text-slate-500 max-w-[240px]">Automatic HSRP plate extraction & violation tracking starts when streaming video.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const currentBus = activeVideoBus;
+      const offending = detectionsList.filter(d => 
+        (d.event_type === 'offending_vehicle' || d.plate_number) && 
+        d.bus_id === currentBus
+      );
+      container.innerHTML = '';
+
+      if (offending.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-500 text-center py-8">Scanning vehicles on ${currentBus}... Waiting for traffic violations.</div>`;
+        return;
+      }
+
+      offending.forEach(det => {
+        const item = document.createElement('div');
+        item.className = 'glass-card p-3 rounded-xl flex items-center justify-between border-l-4 border-rose-500 hover:bg-slate-800/60 cursor-pointer transition';
+        item.onclick = () => selectEvent(det);
+        item.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-extrabold text-white font-mono bg-rose-600/30 px-2 py-0.5 rounded border border-rose-500/50">${det.plate_number || 'UNKNOWN'}</span>
+              <span class="text-[10px] font-bold text-rose-400 uppercase">${det.subtype || 'RASH DRIVING'}</span>
+            </div>
+            <p class="text-[10px] text-slate-400 font-mono mt-1">Bus: ${det.bus_id || 'BUS-101'} &bull; Lat/Lon: ${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-mono font-bold text-emerald-400">${Math.round((det.plate_confidence || det.confidence) * 100)}%</span>
+            <p class="text-[9px] text-slate-500">ANPR Match</p>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // 5. Select and Inspect Event
+    function selectEvent(det) {
+      selectedDetection = det;
+      document.getElementById('inspectorId').innerText = `#${det.id}`;
+      
+      let extraHtml = '';
+      if (det.plate_number) {
+        extraHtml += `
+          <div class="p-2 rounded bg-rose-950/70 border border-rose-500/40">
+            <span class="text-[9px] text-rose-300 uppercase block font-bold">Extracted Registration Plate (ANPR)</span>
+            <span class="text-sm font-mono font-extrabold text-white">${det.plate_number}</span>
+            <span class="text-[9px] text-rose-300/80 block">Confidence: ${Math.round((det.plate_confidence || det.confidence) * 100)}%</span>
+          </div>
+        `;
+      }
+
+      document.getElementById('inspectorBody').innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-16 h-16 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-slate-700">
+            <img src="${API_BASE}${det.image_path}" class="w-full h-full object-cover">
+          </div>
+          <div>
+            <h4 class="font-bold text-white uppercase text-xs">${det.subtype || det.event_type}</h4>
+            <p class="text-[10px] text-slate-400">${det.road_name || 'Urban Corridor'}</p>
+            <span class="text-[10px] font-mono text-cyan-400">Bus: ${det.bus_id || 'BUS-101'} &bull; Severity: ${det.severity.toUpperCase()}</span>
+          </div>
+        </div>
+        ${extraHtml}
+        <div class="grid grid-cols-2 gap-1.5 text-[10px] font-mono text-slate-400">
+          <div>GPS: ${det.lat.toFixed(4)}, ${det.lon.toFixed(4)}</div>
+          <div>Time: ${new Date(det.timestamp).toLocaleTimeString()}</div>
+        </div>
+      `;
+
+      if (map) {
+        map.panTo([det.lat, det.lon]);
+      }
+    }
+
+    // 6. Connect Live WebSockets
+    function connectLiveSocket() {
+      const ws = new WebSocket(`${WS_BASE}/ws/live`);
+
+      ws.onopen = () => {
+        document.getElementById('serverStatusText').innerText = "Edge-AI Fleet Online";
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+
+          if (msg.type === "EDGE_CAMERA_STATUS") {
+            const liveDot = document.getElementById('mobileCamLiveDot');
+            const subtext = document.getElementById('mobileCamSubtext');
+            if (msg.connected) {
+              if (liveDot) liveDot.classList.remove('hidden');
+              if (subtext) subtext.innerText = '(Connected)';
+              showGlobalToast("MOBILE CAMERA CONNECTED", "Smartphone edge sensing node connected & ready to stream.", "Mobile Camera", "mobile");
+            } else {
+              if (liveDot) liveDot.classList.add('hidden');
+              if (subtext) subtext.innerText = '(Standby)';
+              showGlobalToast("MOBILE CAMERA DISCONNECTED", "Mobile phone edge camera disconnected.", "Mobile Camera", "hazard");
+            }
+          }
+
+          if (msg.type === "MOBILE_LOCATION_UPDATE") {
+            const liveDot = document.getElementById('mobileCamLiveDot');
+            if (liveDot) liveDot.classList.remove('hidden');
+            const subtext = document.getElementById('mobileCamSubtext');
+            if (subtext) subtext.innerText = '(LIVE)';
+
+            updateMobileUnitMarker(msg.lat, msg.lon, msg.speed, msg.accuracy);
+
+            if (currentCameraBus === 'MOBILE-CAM') {
+              const gpsDisp = document.getElementById('gpsDisplay');
+              if (gpsDisp) gpsDisp.innerText = `${msg.lat.toFixed(5)}° N, ${msg.lon.toFixed(5)}° E`;
+              const spdDisp = document.getElementById('speedDisplay');
+              if (spdDisp && msg.speed !== undefined) spdDisp.innerText = `${msg.speed} km/h`;
+            }
+          }
+
+          if (msg.type === "LIVE_FRAME") {
+            const isMobileFrame = (msg.is_mobile || msg.source === "mobile_camera" || msg.bus_id === "MOBILE-CAM");
+
+            if (isMobileFrame) {
+              // Mobile phone is actively streaming!
+              const liveDot = document.getElementById('mobileCamLiveDot');
+              if (liveDot) liveDot.classList.remove('hidden');
+              const subtext = document.getElementById('mobileCamSubtext');
+              if (subtext) subtext.innerText = '(LIVE)';
+
+              if (msg.gps) {
+                updateMobileUnitMarker(msg.gps.lat, msg.gps.lon, msg.speed || 0, 8);
+              }
+
+              // ONLY show mobile frame in the video player IF currentCameraBus === 'MOBILE-CAM'
+              // (Keeps BUS-101 and BUS-104 feeds completely independent and uninterrupted!)
+              if (currentCameraBus === 'MOBILE-CAM') {
+                if (!isVideoOpened) isVideoOpened = true;
+                const img = document.getElementById('liveFeedImg');
+                const placeholder = document.getElementById('noStreamPlaceholder');
+                if (img) {
+                  img.src = msg.image;
+                  img.classList.remove('hidden');
+                }
+                if (placeholder) placeholder.classList.add('hidden');
+
+                const cameraStatusBadge = document.getElementById('cameraStatusBadge');
+                if (cameraStatusBadge) {
+                  cameraStatusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold animate-pulse';
+                  cameraStatusBadge.innerText = 'LIVE MOBILE CAM';
+                }
+                const lbl = document.getElementById('activeCameraBusName');
+                if (lbl) {
+                  lbl.className = 'text-emerald-400 font-bold';
+                  lbl.innerHTML = 'MOBILE-CAM &bull; Smartphone Edge AI Stream';
+                }
+                if (msg.gps) {
+                  document.getElementById('gpsDisplay').innerText = `${msg.gps.lat.toFixed(5)}° N, ${msg.gps.lon.toFixed(5)}° E`;
+                }
+                if (msg.speed !== undefined) {
+                  document.getElementById('speedDisplay').innerText = `${msg.speed} km/h`;
+                }
+                if (msg.detection_subtype) {
+                  syncDashboardProblemFocusUI(msg.detection_subtype);
+                } else if (msg.problem_focus && msg.problem_focus !== 'auto') {
+                  syncDashboardProblemFocusUI(msg.problem_focus);
+                }
+                setAlertState(msg.has_detections, msg.detection_subtype || "pothole");
+              }
+              return;
+            }
+
+            // BUS-101 / BUS-104 Fleet Simulation frames:
+            if (!isVideoOpened) {
+              return; // Disregard simulated loop frame if video is not opened!
+            }
+            if (currentCameraBus === 'MOBILE-CAM' || activeVideoBus === 'MOBILE-CAM') {
+              return; // User has Mobile Cam active; don't overwrite with simulated bus frame!
+            }
+
+            const img = document.getElementById('liveFeedImg');
+            const placeholder = document.getElementById('noStreamPlaceholder');
+            img.src = msg.image;
+            img.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+
+            if (msg.gps) {
+              document.getElementById('gpsDisplay').innerText = `${msg.gps.lat.toFixed(5)}° N, ${msg.gps.lon.toFixed(5)}° E`;
+            }
+            if (msg.speed !== undefined) {
+              document.getElementById('speedDisplay').innerText = `${msg.speed} km/h`;
+            }
+
+            // Sync camera bus state if server stream bus changed (protect user's recent manual selection and NEVER switch away from MOBILE-CAM)
+            const recentUserSelection = userSelectedCameraBus && (Date.now() - userSelectedCameraBusTime < 4500);
+            if (msg.bus_id && !recentUserSelection && msg.bus_id !== currentCameraBus && currentCameraBus !== 'MOBILE-CAM') {
+              currentCameraBus = msg.bus_id;
+              updateStreamUI();
+            }
+
+            // Smooth Alert State
+            setAlertState(msg.has_detections, msg.detection_subtype || (msg.bus_id === 'BUS-104' ? "heavy_congestion" : "pothole"));
+          }
+
+          if (msg.type === "FLEET_UPDATE" && msg.buses) {
+            updateFleetMarkers(msg.buses);
+            if (msg.buses[0]) {
+              document.getElementById('speedDisplay').innerText = `${msg.buses[0].speed} km/h`;
+              document.getElementById('b101-speed').innerText = `${msg.buses[0].speed} km/h`;
+            }
+          }
+
+          if (msg.type === "ROUTE_REROUTE_EVENT") {
+            const bus = fleetBuses.find(b => b.id === msg.bus_id);
+            if (bus) {
+              bus.is_rerouted = msg.rerouted;
+              bus.hazard_reason = msg.reason;
+              if (msg.detour_segment) bus.detour_segment = msg.detour_segment;
+            }
+            initOrUpdateFleetRoutes(fleetBuses);
+
+            // ONLY show notification toast and pan map IF this event belongs to the bus currently being watched!
+            if (!isVideoOpened || activeVideoBus === msg.bus_id) {
+              const isTraffic = (msg.bus_id === 'BUS-104');
+              showGlobalToast(
+                msg.rerouted ? (isTraffic ? "AUTONOMOUS LANE CHANGE ACTIVATED" : "AUTONOMOUS FLEET ROUTE DIVERSION") : "FLEET ROUTE RESTORED",
+                `${msg.bus_id}: ${msg.reason}`,
+                msg.hazard_segment ? `${msg.hazard_segment[0][0].toFixed(4)}, ${msg.hazard_segment[0][1].toFixed(4)}` : "Transit Corridor",
+                msg.rerouted ? (isTraffic ? "congestion" : "hazard") : "traffic",
+                msg.bus_id
+              );
+              if (msg.rerouted && msg.hazard_segment && map) {
+                map.panTo(msg.hazard_segment[0], { animate: true, duration: 1.5 });
+              }
+            }
+          }
+
+          if (msg.type === "NEW_DETECTION") {
+            const det = msg.detection;
+            detectionsList.unshift(det);
+            if (detectionsList.length > 200) detectionsList.pop();
+
+            const bId = det.bus_id || 'BUS-101';
+            const isMobile = (bId === 'MOBILE-CAM' || msg.is_mobile);
+            const isAnprOffense = (det.event_type === 'offending_vehicle' || Boolean(det.plate_number));
+            const isCongestion = (det.event_type === 'traffic_bottleneck');
+            const isPedestrian = (det.event_type === 'pedestrian_safety');
+            const isInfra = (det.event_type === 'missing_infrastructure' || (det.subtype && (det.subtype.includes('divider') || det.subtype.includes('signboard') || det.subtype.includes('crossing'))));
+            const isWater = (det.subtype === 'waterlogging');
+            const isDefect = (det.event_type === 'road_defect' || isInfra);
+
+            // Record into live trip session tracker (increments 1, 2, 3...)
+            if (!liveTripStats[bId]) {
+              liveTripStats[bId] = { defects: 0, congestion: 0, offending: 0, delay: (bId === 'BUS-104' ? 6.5 : (bId === 'BUS-101' ? 1.5 : 0.0)), incidents: [], anpr: [] };
+            }
+            if (isDefect) liveTripStats[bId].defects += 1;
+            if (isCongestion) liveTripStats[bId].congestion += 1;
+            if (isAnprOffense || isPedestrian) liveTripStats[bId].offending += 1;
+            liveTripStats[bId].incidents.unshift(det);
+            if (isAnprOffense) liveTripStats[bId].anpr.unshift(det);
+
+            // Update UI dynamically
+            updateStatsCards(isVideoOpened ? activeVideoBus : null);
+            renderMarkers();
+            renderIncidentsList();
+            renderAnprList();
+
+            // Only update live HUD alert state if matching active video bus
+            if (!isVideoOpened || activeVideoBus === bId) {
+              setAlertState(true, det.subtype || det.event_type);
+
+              if (isAnprOffense) {
+                // Automatic ANPR Offense Detection Notification:
+                const plateText = det.plate_number || 'UNKNOWN';
+                const offenseType = (det.subtype || 'RASH DRIVING').replace(/_/g, ' ').toUpperCase();
+                showGlobalToast(
+                  `🚨 AUTOMATIC ANPR: ${plateText}`,
+                  `Violation: ${offenseType} • Recognition: ${Math.round((det.plate_confidence || det.confidence) * 100)}% Match`,
+                  `GPS: ${det.lat.toFixed(4)}°, ${det.lon.toFixed(4)}° • Traffic Police Dispatched`,
+                  'anpr',
+                  bId
+                );
+              } else if (isMobile) {
+                // Exact smartphone GPS detected hazard with smooth throttled map panning
+                const now = Date.now();
+                if (map && (now - lastMapPanTime > 6000)) {
+                  lastMapPanTime = now;
+                  map.panTo([det.lat, det.lon], { animate: true, duration: 1.0 });
+                }
+
+                if (isCongestion) {
+                  showGlobalToast(
+                    `🚦 MOBILE CAM: TRAFFIC CONGESTION DETECTED`,
+                    `Queue: ${det.vehicle_count || 18} Vehicles • Density: ${Math.round((det.vehicle_density || 0.85)*100)}%`,
+                    `Exact GPS: ${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E • Gridlock Warning`,
+                    "congestion",
+                    bId
+                  );
+                } else if (isPedestrian) {
+                  showGlobalToast(
+                    `🚸 MOBILE CAM: PEDESTRIAN SAFETY HAZARD`,
+                    `Zone: ${(det.subtype || 'School Crossing').replace(/_/g, ' ').toUpperCase()}`,
+                    `Exact GPS: ${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E • Safety Alert`,
+                    "hazard",
+                    bId
+                  );
+                } else if (isInfra) {
+                  showGlobalToast(
+                    `🚧 MOBILE CAM: INFRASTRUCTURE DEFECT`,
+                    `Defect: ${(det.subtype || 'Missing Divider').replace(/_/g, ' ').toUpperCase()}`,
+                    `Exact GPS: ${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E • Municipal Works Ticket`,
+                    "hazard",
+                    bId
+                  );
+                } else if (isWater) {
+                  showGlobalToast(
+                    `🌊 MOBILE CAM: WATERLOGGED ROAD`,
+                    `Surface Drainage Ponding • Severity: ${(det.severity || 'high').toUpperCase()}`,
+                    `Exact GPS: ${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E • Hydroplaning Warning`,
+                    "hazard",
+                    bId
+                  );
+                } else {
+                  showGlobalToast(
+                    `⚠️ MOBILE CAM: ROAD POTHOLE HAZARD`,
+                    `Cavity Defect • Severity: ${(det.severity || 'high').toUpperCase()} • Conf: ${Math.round(det.confidence * 100)}%`,
+                    `Exact GPS: ${det.lat.toFixed(5)}° N, ${det.lon.toFixed(5)}° E • PWD Dispatched`,
+                    "hazard",
+                    bId
+                  );
+                }
+              } else {
+                showGlobalToast(
+                  `${(det.subtype || det.event_type).replace(/_/g, ' ').toUpperCase()} DETECTED`,
+                  `${det.road_name || 'Central Urban Corridor'} • Severity: ${det.severity.toUpperCase()}`,
+                  `${det.lat.toFixed(4)}° N, ${det.lon.toFixed(4)}° E`,
+                  det.event_type,
+                  bId
+                );
+
+                const now = Date.now();
+                if (map && (now - lastMapPanTime > 4000)) {
+                  lastMapPanTime = now;
+                  map.panTo([det.lat, det.lon], { animate: true, duration: 1 });
+                }
+              }
+            }
+          }
+
+          if (msg.type === "MOBILE_FOCUS_UPDATE" && msg.focus) {
+            syncDashboardProblemFocusUI(msg.focus);
+          }
+        } catch(err) {
+          console.error("WS message error:", err);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('serverStatusText').innerText = "Reconnecting to Fleet...";
+        setTimeout(connectLiveSocket, 2500);
+      };
+    }
+
+    // 7. Interactive Scenario Triggers
+    async function triggerScenario(type) {
+      try {
+        const res = await fetch(`${API_BASE}/api/sim/trigger?event_type=${type}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+          selectEvent(data.detection);
+        }
+      } catch (err) {
+        alert("Failed to trigger scenario: " + err);
+      }
+    }
+
+    function updateStreamUI() {
+      const img = document.getElementById('liveFeedImg');
+      const placeholder = document.getElementById('noStreamPlaceholder');
+      const cameraStatusBadge = document.getElementById('cameraStatusBadge');
+      const btnCloseTop = document.getElementById('btnCloseStreamTop');
+      const btnToggleSim = document.getElementById('btnToggleSim');
+      const btnSimStreamText = document.getElementById('btnSimStreamText');
+      const alertBanner = document.getElementById('liveAlertBanner');
+      const alertDot = document.getElementById('alertIndicatorDot');
+      const alertText = document.getElementById('liveAlertText');
+      const alertSub = document.getElementById('liveAlertSub');
+      const alertBadge = document.getElementById('liveAlertBadge');
+      const cam101 = document.getElementById('cambus-BUS-101');
+      const cam104 = document.getElementById('cambus-BUS-104');
+      const lbl = document.getElementById('activeCameraBusName');
+
+      if (!isVideoOpened) {
+        if (img) {
+          img.classList.add('hidden');
+          img.src = '';
+        }
+        if (placeholder) placeholder.classList.remove('hidden');
+
+        if (cameraStatusBadge) {
+          cameraStatusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-semibold';
+          cameraStatusBadge.innerText = 'STREAM STANDBY';
+        }
+        if (btnCloseTop) btnCloseTop.classList.add('hidden');
+
+        if (btnToggleSim) {
+          btnToggleSim.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition cursor-pointer';
+        }
+        if (btnSimStreamText) {
+          btnSimStreamText.innerText = 'Open Video Stream (BUS-101)';
+        }
+
+        if (alertBanner) {
+          alertBanner.className = 'mt-2.5 min-h-[46px] p-2.5 rounded-xl flex items-center justify-between backdrop-blur-md transition-all duration-300 border border-slate-700/60 bg-slate-900/60 shadow-sm';
+        }
+        if (alertDot) {
+          alertDot.innerHTML = '<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>';
+        }
+        if (alertText) {
+          alertText.className = 'text-xs font-bold text-slate-300';
+          alertText.innerText = 'CAMERA STANDBY • ONLY ORIGINAL LANES DISPLAYED';
+        }
+        if (alertSub) {
+          alertSub.innerText = 'Open BUS-101 or BUS-104 video to stream camera & inspect road defects/congestion';
+        }
+        if (alertBadge) {
+          alertBadge.className = 'text-[10px] font-mono uppercase bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-semibold';
+          alertBadge.innerText = 'STANDBY';
+        }
+
+        const camMobile = document.getElementById('cambus-MOBILE-CAM');
+        if (cam101) cam101.className = 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer';
+        if (cam104) cam104.className = 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer';
+        if (camMobile) camMobile.className = 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex flex-col items-center justify-center gap-0.5 transition cursor-pointer relative';
+        if (lbl) {
+          lbl.className = 'text-slate-400 font-medium';
+          lbl.innerHTML = 'Standby &bull; Select Camera Feed to Open';
+        }
+      } else {
+        const busId = activeVideoBus || currentCameraBus || 'BUS-101';
+        if (img) img.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+
+        if (cameraStatusBadge) {
+          if (busId === 'MOBILE-CAM') {
+            cameraStatusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold animate-pulse';
+            cameraStatusBadge.innerText = 'STREAMING • MOBILE CAM';
+          } else if (busId === 'BUS-104') {
+            cameraStatusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold animate-pulse';
+            cameraStatusBadge.innerText = 'STREAMING • BUS-104';
+          } else {
+            cameraStatusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold animate-pulse';
+            cameraStatusBadge.innerText = 'STREAMING • BUS-101';
+          }
+        }
+        if (btnCloseTop) btnCloseTop.classList.remove('hidden');
+
+        if (btnToggleSim) {
+          btnToggleSim.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-semibold shadow-lg shadow-rose-600/20 transition cursor-pointer';
+        }
+        if (btnSimStreamText) {
+          btnSimStreamText.innerText = `Close Video Stream (${busId})`;
+        }
+
+        const camMobile = document.getElementById('cambus-MOBILE-CAM');
+        if (cam101) {
+          cam101.className = (busId === 'BUS-101')
+            ? 'cam-bus-btn active py-1.5 px-2 rounded-lg bg-cyan-600 text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer'
+            : 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer';
+        }
+        if (cam104) {
+          cam104.className = (busId === 'BUS-104')
+            ? 'cam-bus-btn active py-1.5 px-2 rounded-lg bg-amber-600 text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer'
+            : 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex items-center justify-center gap-1.5 transition cursor-pointer';
+        }
+        if (camMobile) {
+          camMobile.className = (busId === 'MOBILE-CAM')
+            ? 'cam-bus-btn active py-1.5 px-2 rounded-lg bg-emerald-600 text-white font-bold text-center flex flex-col items-center justify-center gap-0.5 transition cursor-pointer relative'
+            : 'cam-bus-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-white font-bold text-center flex flex-col items-center justify-center gap-0.5 transition cursor-pointer relative';
+        }
+
+        if (lbl) {
+          if (busId === 'MOBILE-CAM') {
+            lbl.className = 'text-emerald-400 font-bold';
+            lbl.innerHTML = 'MOBILE-CAM &bull; Smartphone Edge AI Stream';
+          } else if (busId === 'BUS-104') {
+            lbl.className = 'text-amber-400 font-bold';
+            lbl.innerHTML = 'BUS-104 &bull; VIP Road (Heavy Traffic)';
+          } else {
+            lbl.className = 'text-cyan-400 font-bold';
+            lbl.innerHTML = 'BUS-101 &bull; EM Bypass (Potholes)';
+          }
+        }
+      }
+
+      // Synchronize Mobile Cam Problem Focus Bar visibility
+      const mobileBar = document.getElementById('mobileProblemFocusBar');
+      if (mobileBar) {
+        const busId = activeVideoBus || currentCameraBus;
+        if (isVideoOpened && busId === 'MOBILE-CAM') {
+          mobileBar.classList.remove('hidden');
+        } else {
+          mobileBar.classList.add('hidden');
+        }
+      }
+    }
+
+    let currentMobileProblemFocus = 'auto';
+
+    function setDashboardProblemFocus(mode) {
+      currentMobileProblemFocus = mode;
+      syncDashboardProblemFocusUI(mode);
+
+      fetch(`/api/mobile/focus?mode=${encodeURIComponent(mode)}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          showGlobalToast("PERCEPTION FOCUS UPDATED", `Mobile Edge Sensing targeted on: ${mode.replace(/_/g, ' ').toUpperCase()}`, "Edge AI Engine", "traffic", "MOBILE-CAM");
+        })
+        .catch(() => {});
+    }
+
+    function syncDashboardProblemFocusUI(subtype) {
+      if (!subtype) return;
+      currentMobileProblemFocus = subtype;
+      document.querySelectorAll('.dash-focus-btn').forEach(b => {
+        const isActive = (b.getAttribute('data-focus') === subtype);
+        b.className = isActive
+          ? 'dash-focus-btn active py-1 px-1 rounded bg-blue-600 text-white font-bold text-center cursor-pointer transition truncate shadow-md'
+          : 'dash-focus-btn py-1 px-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-center cursor-pointer transition truncate';
+      });
+      const lbl = document.getElementById('dashFocusLabel');
+      if (!lbl) return;
+      const clean = String(subtype).toLowerCase();
+      if (clean.includes('congestion') || clean.includes('bottleneck')) {
+        lbl.innerText = "🚦 TRAFFIC CONGESTION";
+        lbl.className = "text-amber-300 font-mono font-extrabold bg-amber-950/80 px-2.5 py-1 rounded-lg border border-amber-500/50 shadow-sm";
+      } else if (clean.includes('driving') || clean.includes('speeding') || clean.includes('tailgating') || clean.includes('overtake') || clean.includes('offending')) {
+        lbl.innerText = "🚨 ANPR / RASH DRIVING";
+        lbl.className = "text-rose-300 font-mono font-extrabold bg-rose-950/80 px-2.5 py-1 rounded-lg border border-rose-500/50 shadow-sm";
+      } else if (clean.includes('water')) {
+        lbl.innerText = "🌊 WATERLOGGED ROAD";
+        lbl.className = "text-sky-300 font-mono font-extrabold bg-sky-950/80 px-2.5 py-1 rounded-lg border border-sky-500/50 shadow-sm";
+      } else if (clean.includes('pedestrian') || clean.includes('school') || clean.includes('children')) {
+        lbl.innerText = "🚸 PEDESTRIAN SAFETY";
+        lbl.className = "text-fuchsia-300 font-mono font-extrabold bg-fuchsia-950/80 px-2.5 py-1 rounded-lg border border-fuchsia-500/50 shadow-sm";
+      } else if (clean.includes('divider') || clean.includes('signboard') || clean.includes('crossing') || clean.includes('infra')) {
+        lbl.innerText = "🚧 INFRA DEFECT";
+        lbl.className = "text-orange-300 font-mono font-extrabold bg-orange-950/80 px-2.5 py-1 rounded-lg border border-orange-500/50 shadow-sm";
+      } else {
+        lbl.innerText = "🕳️ ROAD POTHOLE";
+        lbl.className = "text-rose-300 font-mono font-extrabold bg-rose-950/80 px-2.5 py-1 rounded-lg border border-rose-500/50 shadow-sm";
+      }
+    }
+
+    async function openVideoStream(busId = 'BUS-101') {
+      isVideoOpened = true;
+      activeVideoBus = busId;
+      currentCameraBus = busId;
+      userSelectedCameraBus = busId;
+      userSelectedCameraBusTime = Date.now();
+
+      updateStreamUI();
+      renderMarkers();
+      initOrUpdateFleetRoutes(fleetBuses);
+      updateMapLocatorButton(busId);
+      updateRouteSymbologyHUD(busId);
+      updateRerouteBanner();
+
+      // Instantly update Top KPI Stats Bar, Incident Log, and ANPR feed for this specific bus!
+      await refreshStatsAndFeeds(busId);
+
+      if (busId === 'MOBILE-CAM') {
+        // Stop background fleet simulation to dedicate 100% bandwidth and CPU to mobile phone stream
+        try {
+          fetch(`${API_BASE}/api/sim/stream/stop`, { method: 'POST' });
+        } catch (e) {}
+
+        if (mobileUnitMarker && map) {
+          map.panTo(mobileUnitMarker.getLatLng(), { animate: true, duration: 1.0 });
+          mobileUnitMarker.openPopup();
+        } else if (map) {
+          showGlobalToast(
+            "MOBILE SENSING ACTIVE",
+            "Open camera.html on your phone or browser to stream live video with real-time GPS geolocation.",
+            "Smartphone Node",
+            "mobile"
+          );
+        }
+        return;
+      }
+
+      try {
+        await fetch(`${API_BASE}/api/sim/stream/start?bus_id=${busId}`, { method: 'POST' });
+      } catch (err) {
+        console.warn("Error calling start stream:", err);
+      }
+
+      // Pan to bus on map and open popup
+      const bus = fleetBuses.find(b => b.id === busId);
+      if (bus && map) {
+        map.flyTo([bus.current_lat || bus.lat, bus.current_lon || bus.lon], 14, { animate: true, duration: 1.2 });
+        if (busMarkers[busId]) {
+          busMarkers[busId].openPopup();
+        }
+      }
+
+      showGlobalToast(
+        `OPENED ${busId} VIDEO STREAM`,
+        busId === 'BUS-104' 
+          ? 'Streaming VIP Road traffic camera & revealing original lane, congestion yellow circles, and changed lane!'
+          : 'Streaming EM Bypass windshield camera & revealing original lane, road potholes, and detour!',
+        busId,
+        busId === 'BUS-104' ? 'congestion' : 'hazard',
+        busId
+      );
+    }
+
+    async function closeVideoStream() {
+      isVideoOpened = false;
+      activeVideoBus = null;
+
+      updateStreamUI();
+      renderMarkers();
+      initOrUpdateFleetRoutes(fleetBuses);
+      updateRouteSymbologyHUD('NONE');
+      updateRerouteBanner();
+
+      // Reset Top KPI Stats Bar, Incident Log, and ANPR feed back to Fleet Overview
+      await refreshStatsAndFeeds(null);
+
+      try {
+        await fetch(`${API_BASE}/api/sim/stream/stop`, { method: 'POST' });
+      } catch (err) {
+        console.warn("Error calling stop stream:", err);
+      }
+
+      showGlobalToast(
+        "VIDEO STREAM CLOSED",
+        "Stream stopped. Map reverted to showing ONLY original lanes.",
+        "Fleet Standby",
+        "traffic"
+      );
+    }
+
+    function toggleSimStream() {
+      if (isVideoOpened) {
+        closeVideoStream();
+      } else {
+        openVideoStream(currentCameraBus || 'BUS-101');
+      }
+    }
+
+    // Camera Angle & Tabs (Front Dashcam, Side Curbside, Rear ANPR)
+    async function setCameraAngle(angle) {
+      currentCameraAngle = angle;
+      document.querySelectorAll('.cam-btn').forEach(b => {
+        b.className = 'cam-btn py-1.5 px-2 rounded-lg text-slate-400 hover:text-slate-200 font-semibold text-center cursor-pointer';
+      });
+      document.getElementById(`cam-${angle}`).className = 'cam-btn active py-1.5 px-2 rounded-lg bg-cyan-600 text-white font-semibold text-center cursor-pointer';
+
+      try {
+        await fetch(`${API_BASE}/api/sim/camera_angle?angle=${angle}`, { method: 'POST' });
+      } catch (err) {}
+
+      showGlobalToast(
+        `CAMERA SWITCHED: ${angle.toUpperCase()}`,
+        angle === 'rear' 
+          ? 'Rear ANPR active: Continuous vehicle tracking & automatic license plate OCR enabled.' 
+          : (angle === 'side' ? 'Side curbside camera: Dividers & infrastructure inspection.' : 'Front Dashcam: Road hazard & traffic monitoring.'),
+        'Camera Matrix',
+        angle === 'rear' ? 'anpr' : 'traffic'
+      );
+    }
+
+    function setLayerFilter(layer) {
+      activeLayerFilter = layer;
+      document.querySelectorAll('.layer-btn').forEach(b => {
+        b.className = 'layer-btn px-2.5 py-1 rounded text-slate-400 hover:text-slate-200 font-medium';
+      });
+      document.getElementById(`layer-${layer}`).className = 'layer-btn active px-2.5 py-1 rounded text-cyan-300 bg-cyan-600/30 font-medium';
+      renderMarkers();
+      if (layer === 'fleet') {
+        locateBus('BUS-101');
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.op-tab').forEach(b => {
+        b.className = 'op-tab px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-semibold flex items-center gap-1.5';
+      });
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+
+      document.getElementById(`tab-${tab}`).className = 'op-tab active px-3 py-1.5 rounded-lg bg-blue-600/30 text-blue-300 font-semibold flex items-center gap-1.5';
+      document.getElementById(`panel-${tab}`).classList.remove('hidden');
+    }
+
+    // Modal Helpers
+    function openDetailModalSelected() {
+      if (selectedDetection) openDetailModal(selectedDetection);
+    }
+
+    function openDetailModal(det) {
+      document.getElementById('modalId').innerText = `#${det.id}`;
+      document.getElementById('modalImage').src = `${API_BASE}${det.image_path}`;
+      document.getElementById('modalType').innerText = `${(det.subtype || det.event_type).toUpperCase()} (Bus: ${det.bus_id || 'BUS-101'})`;
+      document.getElementById('modalConfidence').innerText = `${Math.round(det.confidence * 100)}%`;
+      document.getElementById('modalSeverity').innerText = det.severity.toUpperCase();
+      document.getElementById('modalGps').innerText = `${det.lat.toFixed(5)}, ${det.lon.toFixed(5)} (${det.road_name || 'Urban Arterial'})`;
+      document.getElementById('modalTime').innerText = new Date(det.timestamp).toLocaleString();
+      document.getElementById('modalStatusSelect').value = det.status;
+
+      const anprBox = document.getElementById('modalAnprBox');
+      if (det.plate_number) {
+        anprBox.classList.remove('hidden');
+        document.getElementById('modalPlate').innerText = det.plate_number;
+        document.getElementById('modalPlateConf').innerText = `Recognition Match Confidence: ${Math.round((det.plate_confidence || 0.95) * 100)}%`;
+      } else {
+        anprBox.classList.add('hidden');
+      }
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    async function saveStatusChange() {
+      if (!selectedDetection) return;
+      const newStatus = document.getElementById('modalStatusSelect').value;
+      try {
+        const res = await fetch(`${API_BASE}/api/detections/${selectedDetection.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) {
+          selectedDetection.status = newStatus;
+          closeDetailModal();
+          loadData();
+        }
+      } catch (err) {
+        alert("Failed to update status: " + err);
+      }
+    }
+
+    async function openMobileModal() {
+      const modal = document.getElementById('mobileModal');
+      const urlBox = document.getElementById('mobileNodeUrl');
+      const httpFallback = document.getElementById('mobileHttpFallback');
+      modal.classList.remove('hidden');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/network_info`);
+        if (res.ok) {
+          const info = await res.json();
+          if (info.lan_ip) {
+            urlBox.innerText = info.https_camera_url || `https://${info.lan_ip}:8443/camera`;
+            if (httpFallback) {
+              httpFallback.href = info.http_camera_url || `http://${info.lan_ip}:8000/camera`;
+              httpFallback.innerText = info.http_camera_url || `http://${info.lan_ip}:8000/camera`;
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not retrieve /api/network_info:", err);
+      }
+
+      const host = window.location.hostname || 'localhost';
+      urlBox.innerText = `https://${host}:8443/camera`;
+      if (httpFallback) {
+        httpFallback.href = `http://${host}:8000/camera`;
+        httpFallback.innerText = `http://${host}:8000/camera`;
+      }
+    }
+
+    function closeMobileModal() {
+      document.getElementById('mobileModal').classList.add('hidden');
+    }
+
+    function copyMobileUrl() {
+      const text = document.getElementById('mobileNodeUrl').innerText.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        const btnText = document.getElementById('copyBtnText');
+        if (btnText) {
+          btnText.innerText = "Copied!";
+          setTimeout(() => { btnText.innerText = "Copy"; }, 2000);
+        }
+      }).catch(() => {
+        prompt("Copy this URL for your phone:", text);
+      });
+    }
+
+    // Startup
+    window.onload = () => {
+      initMap();
+      loadData();
+      connectLiveSocket();
+      lucide.createIcons();
+      updateStreamUI();
+      updateMapLocatorButton('BUS-101');
+      updateRouteSymbologyHUD('NONE');
+    };
+  </script>
+</body>
+</html>

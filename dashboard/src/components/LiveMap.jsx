@@ -14,8 +14,8 @@ export function LiveMap({ detections = [], selectedDetection, onSelectDetection,
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      const initialLat = currentGps ? currentGps.lat : 19.0760;
-      const initialLon = currentGps ? currentGps.lon : 72.8777;
+      const initialLat = currentGps ? currentGps.lat : 22.5726;
+      const initialLon = currentGps ? currentGps.lon : 88.3639;
 
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLon],

@@ -16,12 +16,20 @@ venv/
 ENV/
 env/
 *.sqlite3
+*.db
 
 # IDE & Editor
 .vscode/
 .idea/
 .antigravity/
 *.log
+
+# Large distribution packages and temporary simulation snapshots
+*.zip
+server/static/uploads/*.jpg
+server/static/uploads/*.png
+!server/static/uploads/.gitkeep
+scratch/
 
 # Pi client offline queue & heavy model checkpoints
 offline_queue/

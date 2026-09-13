@@ -8,8 +8,8 @@ class GPSTracker:
         self.max_age_seconds = max_age_seconds
         self.points = []  # List of tuples: (epoch_timestamp, lat, lon)
         self.lock = threading.Lock()
-        # Fallback default location (e.g., San Francisco / Mumbai / Delhi center depending on user)
-        self.default_location = (19.0760, 72.8777)  # Default Mumbai coordinates
+        # Fallback default location (Kolkata Municipal Metropolitan Region)
+        self.default_location = (22.5726, 88.3639)  # Default Kolkata coordinates
 
     def update_location(self, lat: float, lon: float, timestamp: Optional[float] = None):
         if timestamp is None:

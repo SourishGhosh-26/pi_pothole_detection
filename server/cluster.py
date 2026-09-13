@@ -1,5 +1,6 @@
 import math
 from datetime import datetime
+from typing import Optional
 from sqlalchemy.orm import Session
 import models
 
@@ -26,16 +27,30 @@ def is_duplicate_detection(
     lon: float, 
     timestamp: datetime, 
     max_distance_meters: float = 15.0, 
-    max_time_seconds: float = 60.0
+    max_time_seconds: float = 60.0,
+    event_type: str = "road_defect",
+    plate_number: Optional[str] = None
 ) -> bool:
     """
     Checks if a detection at (lat, lon) at timestamp is within max_distance_meters
     and max_time_seconds of an existing detection in the database.
+    Prevents duplicate road defects while allowing distinct ANPR vehicle detections.
     """
-    # Fetch recent detections (e.g., last 100 detections)
     recent_detections = db.query(models.Detection).order_by(models.Detection.timestamp.desc()).limit(100).all()
     
     for det in recent_detections:
+        # If checking for ANPR license plate deduplication:
+        if plate_number:
+            if det.plate_number and det.plate_number == plate_number:
+                time_diff = abs((timestamp - det.timestamp).total_seconds())
+                if time_diff <= max_time_seconds:
+                    return True
+            continue
+
+        # If different event types (e.g. road_defect vs offending_vehicle), they are not duplicates
+        if det.event_type != event_type:
+            continue
+
         time_diff = abs((timestamp - det.timestamp).total_seconds())
         if time_diff <= max_time_seconds:
             dist = haversine_distance(lat, lon, det.lat, det.lon)

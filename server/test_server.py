@@ -17,7 +17,7 @@ def test_system():
     print("Stats output:", res.json())
 
     print("\n--- 3. Testing Trigger Simulated Detection ---")
-    res = client.post("/api/sim/trigger?lat=19.0760&lon=72.8777&severity=high")
+    res = client.post("/api/sim/trigger?lat=22.5726&lon=88.3639&severity=high")
     assert res.status_code == 200
     sim_data = res.json()
     print("Simulated detection created:", sim_data["detection"])

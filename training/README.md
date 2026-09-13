@@ -6,18 +6,18 @@ Run this workflow in Google Colab (with **T4 GPU** enabled) to train the custom 
 
 ### Step 1: Install Dependencies
 ```python
-!pip install ultralytics roboflow
+!pip install ultralytics
 ```
 
-### Step 2: Download Pothole Dataset from Roboflow
+### Step 2: Load Pothole Dataset (Offline Open-Source Format)
 ```python
-from roboflow import Roboflow
-rf = Roboflow(api_key="YOUR_ROBOFLOW_API_KEY")
-
-# Example using public pothole dataset (e.g. BharatPothole or pothole-detection)
-project = rf.workspace("vishwajeet-patil-evpvg").project("pothole-detection-system-v1")
-dataset = project.version(1).download("yolov8")
-
+# 100% Self-Contained & Edge-Native: Completely Offline Training
+# You can use any standard open-source YOLO dataset folder structure:
+# dataset/
+#   ├── images/ (train/ and val/)
+#   ├── labels/ (train/ and val/)
+#   └── data.yaml
+#
 # Ensure dataset/data.yaml has:
 # nc: 1
 # names: ['pothole']
