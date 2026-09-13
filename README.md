@@ -33,19 +33,19 @@ The multi-spectral computer vision engine autonomously classifies 6 critical urb
   - **BUS-104 (Congestion Bypass)**: When heavy congestion queues form on the VIP Road original lane, the bus switches to the changed lane (Broadway Detour • 34 km/h free flow).
 - **Clean Map Visualization**: Shows solid scheduled lines, yellow traffic congestion circles, and green dashed detours with zero map clutter.
 
-### 3. Edge-Device & Smartphone Integration
-- **Mobile Camera Streaming**: Stream live video from any mobile phone via secure HTTPS (`https://<LAN_IP>:8443/camera`).
-- **Laptop Central Command**: Dark-themed GIS command center running on `http://localhost:8000/`.
-- **Raspberry Pi Vehicle Node**: Python-based edge client for vehicle-mounted Raspberry Pi Zero 2 W with offline caching.
+### 3. Smartphone & Edge-Device Integration
+- **Smartphone Live Camera Node**: Any mobile phone (Android / iOS) functions as an intelligent vehicle camera node streaming real-time video and GPS coordinates over secure HTTPS (`https://<LAN_IP>:8443/camera`).
+- **Vehicle Dashcam & Webcams**: Seamlessly connects to vehicle-mounted smartphone mounts, USB webcams, or pre-recorded transit camera feeds.
+- **Laptop Command Center**: Dark-themed GIS operations dashboard running on `http://localhost:8000/` with WebSocket live telemetry.
 
 ---
 
 ## 🏗 System Architecture
 
 ```
-   [ Mobile Camera (HTTPS) / Vehicle Dashcam / Pi Zero 2 W ]
+   [ Smartphone Camera (HTTPS) / Vehicle Dashcam / Mobile Node ]
                               │
-                              ▼ (WebSocket / REST Stream)
+                              ▼ (WebSocket / Secure HTTPS Stream)
                    ┌───────────────────────┐
                    │   FastAPI Server      │
                    │   Port 8000 & 8443    │
@@ -108,8 +108,8 @@ RUN_URBANSENSE.bat
 │   └── static/
 │       ├── dashboard.html   # Mission Control GIS mapping dashboard
 │       └── camera.html      # Mobile phone camera edge streaming app
-├── pi-client/
-│   └── main.py              # Raspberry Pi Zero 2 W video streamer & offline queue
+├── phone_app_streamer.py    # Mobile smartphone camera edge client
+├── video_streamer.py        # Video feed stream transmitter
 ├── tools/
 │   ├── create_share_zip.py  # Generates distributable standalone project archive
 │   └── reset_detections.py  # Clears database for clean demo presentation
