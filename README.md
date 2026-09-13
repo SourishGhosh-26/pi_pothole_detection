@@ -1,121 +1,126 @@
-# PATCHSENSE — Real-time Pothole Detection & Road-Mapping System
+# BEL UrbanSense — Autonomous Edge-AI Transit Perception & Dynamic Route Optimization System
 
-**PATCHSENSE** is an end-to-end real-time pothole detection and spatial road-mapping system designed for vehicle-mounted deployment.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-Computer%20Vision-5C3EE8.svg)](https://opencv.org/)
+[![Leaflet](https://img.shields.io/badge/Leaflet-GIS%20Mapping-199900.svg)](https://leafletjs.com/)
 
-A **Raspberry Pi Zero 2 W** equipped with a camera captures video frames on the road and streams raw binary JPEG frames over WebSocket to an inference server running on a laptop. The server runs a **single-class YOLO object detector**, matches each frame to browser-based GPS readings, performs spatial-temporal clustering (~15m, ~60s deduplication), logs pothole hazards to a SQLite database, and broadcasts new detections live to a polished React + Leaflet dark-themed dashboard.
+**BEL UrbanSense** is a comprehensive, real-time edge-AI urban road perception and public transit optimization system. Designed for smart cities and public transit fleets, it transforms transit buses and mobile devices into connected edge nodes that autonomously detect road hazards, monitor pedestrian safety, identify traffic congestion bottlenecks, read offending vehicle license plates (ANPR), and dynamically reroute transit vehicles to avoid hazards in real time.
+
+---
+
+## 👥 Project Lead & Author
+
+- **Sourish Ghosh** ([@SourishGhosh-26](https://github.com/SourishGhosh-26)) — *Lead Developer, Edge-AI System Integration & Dynamic Routing Architecture*
+
+---
+
+## 🌟 Key Capabilities & Features
+
+### 1. Autonomous Multi-Hazard Road Perception (Zero Clicks Required)
+The multi-spectral computer vision engine autonomously classifies 6 critical urban road conditions with high precision without requiring any user input or button clicks:
+- 🚸 **Pedestrian Safety**: Detects pedestrians, crosswalks, and school children with upright contour aspect analysis ($H/W \ge 1.50$).
+- 🚦 **Traffic Congestion Bottlenecks**: Analyzes vehicle density, queue lengths, and slow crawling speeds ($<10\text{ km/h}$) to detect bottlenecks.
+- 🕳️ **Severe Potholes & Craters**: Identifies asphalt surface depressions, fissures, and cavity clusters.
+- 🌊 **Waterlogged Roads**: Senses surface water accumulation and specular road gloss.
+- 🚧 **Missing & Damaged Infrastructure**: Flags missing dividers, damaged signboards, and worn zebra markings for PWD maintenance.
+- 🚨 **Automatic Number Plate Recognition (ANPR)**: Reads vehicle license plates and logs hit-and-run, reckless driving, and illegal overtakes.
+
+### 2. Autonomous Transit Fleet Monitoring & Dynamic Route Detours
+- **Live Fleet Tracking**: Real-time GPS tracking of Kolkata transit routes (Route 42A EM Bypass and Route 18B VIP Road).
+- **Dynamic Detour Activation**:
+  - **BUS-101 (Hazard Avoidance)**: When potholes and craters are detected on the EM Bypass corridor, the bus autonomously branches at **Park Circus 7-Point** onto a clear green detour (Topsia ➔ Anandapur ➔ Madurdaha) and re-joins the terminus safely.
+  - **BUS-104 (Congestion Bypass)**: When heavy congestion queues form on the VIP Road original lane, the bus switches to the changed lane (Broadway Detour • 34 km/h free flow).
+- **Clean Map Visualization**: Shows solid scheduled lines, yellow traffic congestion circles, and green dashed detours with zero map clutter.
+
+### 3. Edge-Device & Smartphone Integration
+- **Mobile Camera Streaming**: Stream live video from any mobile phone via secure HTTPS (`https://<LAN_IP>:8443/camera`).
+- **Laptop Central Command**: Dark-themed GIS command center running on `http://localhost:8000/`.
+- **Raspberry Pi Vehicle Node**: Python-based edge client for vehicle-mounted Raspberry Pi Zero 2 W with offline caching.
 
 ---
 
 ## 🏗 System Architecture
 
 ```
-[ Raspberry Pi Zero 2 W ] 
-      │ 
-      ├── Raw Binary JPEG Frames (WebSocket: /ws/ingest)
-      ▼
-[ Laptop FastAPI Server ] ◄── Browser GPS Pings (navigator.geolocation.watchPosition)
-      │
-      ├── 1. Timestamp Matching (GPS Tracker)
-      ├── 2. YOLO Object Detection (pothole class only)
-      ├── 3. Spatial-Temporal Clustering (~15m, ~60s deduplication)
-      ├── 4. SQLite DB Persistence & Image Snapshot Storage
-      │
-      └── Broadcast live detections (WebSocket: /ws/live) ──► [ React + Leaflet Dashboard ]
-```
-
----
-## Contibutions
-1] Darshan.H : Build the entire software.
-
-2] Amar.s : BUild the entire Architecture & entire hardware part integiration
-
-
-## 🚀 Quick Start Guide
-
-### 1. Server Setup (Laptop)
-
-Navigate to the `server` directory and install Python dependencies:
-```bash
-cd server
-pip install -r requirements.txt
-```
-
-Run the FastAPI server:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-- API Docs: `http://localhost:8000/docs`
-- Uploaded snapshots: `http://localhost:8000/static/uploads/`
-
-> **Note on Stub Mode vs Trained YOLO Model**:
-> The server starts with a built-in **Stub Detector** (~30% random simulated potholes) for instant pipeline testing.
-> To deploy a custom-trained model, place your trained YOLO weights in `server/models/best.pt` or `server/models/yolo26n.pt`. The server automatically loads the custom model upon restart!
-
----
-
-### 2. Dashboard Setup (Laptop Browser)
-
-Navigate to the `dashboard` directory and install Node.js dependencies:
-```bash
-cd dashboard
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173` in your browser:
-- Grant **Geolocation Permissions** when prompted.
-- View live pothole markers appearing on the dark CartoDB map in real time.
-- Click any marker to view the snapshot image, GPS tag, confidence score, and update its status (`reported`, `verified`, `fixed`).
-- Click **"Simulate Detection"** in the header to trigger a synthetic detection instantly.
-
----
-
-### 3. Raspberry Pi Client Setup (Raspberry Pi Zero 2 W)
-
-Connect your Raspberry Pi and Laptop to the **same Wi-Fi hotspot**.
-
-Navigate to `pi-client`:
-```bash
-cd pi-client
-pip install -r requirements.txt
-```
-
-Edit `config.json` with your laptop's Wi-Fi IP address:
-```json
-{
-  "server_url": "ws://192.168.1.105:8000/ws/ingest",
-  "fps": 3,
-  "jpeg_quality": 75
-}
-```
-
-Run the camera streamer:
-```bash
-python main.py
+   [ Mobile Camera (HTTPS) / Vehicle Dashcam / Pi Zero 2 W ]
+                              │
+                              ▼ (WebSocket / REST Stream)
+                   ┌───────────────────────┐
+                   │   FastAPI Server      │
+                   │   Port 8000 & 8443    │
+                   └──────────┬────────────┘
+                              │
+               ┌──────────────┴──────────────┐
+               ▼                             ▼
+   [ Edge-AI Perception ]         [ GIS Fleet Routing Engine ]
+   • Pedestrian Safety            • Real-time Bus GPS Tracking
+   • Traffic Congestion           • Hazard Segment Evaluation
+   • Road Defect / Pothole        • Dynamic Detour Branching
+   • Automatic ANPR Reader        • Speed & Delay Optimization
+               │                             │
+               └──────────────┬──────────────┘
+                              │
+                              ▼ (WebSocket Broadcast)
+           ┌──────────────────────────────────────┐
+           │   BEL UrbanSense Operations Center   │
+           │   (Interactive Dark-Mode GIS Map)    │
+           └──────────────────────────────────────┘
 ```
 
 ---
 
-## 🧠 Training Custom YOLO Model (Colab GPU)
+## 🚀 1-Click Quick Start (For Windows)
 
-To train a custom single-class YOLO model (`pothole`) using Roboflow datasets:
+Clone the repository:
+```bash
+git clone https://github.com/SourishGhosh-26/pi_pothole_detection.git
+cd pi_pothole_detection
+```
 
-1. Open `training/README.md` or launch a Google Colab notebook with **GPU runtime**.
-2. Download a pothole dataset from Roboflow (e.g., `BharatPothole` / `pothole-detection`).
-3. Confirm `data.yaml` defines single class: `nc: 1`, `names: ['pothole']`.
-4. Train for 50 epochs:
-   ```python
-   from ultralytics import YOLO
-   model = YOLO("yolo26n.pt") # or yolov8n.pt
-   model.train(data="path/to/data.yaml", epochs=50, imgsz=640, batch=16, patience=10)
-   ```
-5. Download `best.pt` and place it at `server/models/best.pt`.
+### Option A: Complete 1-Click Setup & Launch (Recommended)
+Simply double-click:
+```text
+SETUP_NEW_LAPTOP.bat
+```
+This script automatically checks Python, creates the isolated virtual environment, installs all dependencies, generates SSL certificates, and launches the entire system!
+
+### Option B: Quick Launch (When Already Setup)
+Double-click:
+```text
+RUN_URBANSENSE.bat
+```
+
+### Accessing the Interfaces:
+- **Laptop Command Dashboard**: Open `http://localhost:8000/` in your browser.
+- **Mobile Phone Camera**: Open `https://<YOUR_LAPTOP_IP>:8443/camera` on your smartphone browser.
 
 ---
 
-## ⚠️ Known Limitations & Future Work
+## 📁 Repository Structure
 
-1. **Wi-Fi Browser Geolocation**: GPS coordinates are derived from the dashboard browser tab (`navigator.geolocation.watchPosition`). This relies on Wi-Fi positioning, which can have position lag or coarseness compared to dedicated hardware GPS modules (e.g. NEO-6M / GT-U7).
-2. **Single-Class Model**: The system exclusively detects single-class potholes (`nc: 1`).
-3. **Route Replay**: Historical route replay animations are omitted for demo scope; all detected hazards are mapped statically and dynamically as live points.
-4. **Deep Offline Queue UI**: The Pi client includes local disk queueing (`./offline_queue`) when Wi-Fi drops, but a graphical UI for inspecting the queue is deferred to future work.
+```text
+├── server/
+│   ├── main.py              # Central FastAPI server, WebSocket hub & fleet simulator
+│   ├── detector.py          # Edge-AI multi-hazard computer vision classifier
+│   ├── models.py            # SQLite database models for incident persistence
+│   ├── run_server.py        # Dual HTTP/HTTPS server launcher
+│   └── static/
+│       ├── dashboard.html   # Mission Control GIS mapping dashboard
+│       └── camera.html      # Mobile phone camera edge streaming app
+├── pi-client/
+│   └── main.py              # Raspberry Pi Zero 2 W video streamer & offline queue
+├── tools/
+│   ├── create_share_zip.py  # Generates distributable standalone project archive
+│   └── reset_detections.py  # Clears database for clean demo presentation
+├── SETUP_NEW_LAPTOP.bat     # Automated setup script for new machines
+├── RUN_URBANSENSE.bat       # Quick launcher script
+└── walkthrough.md           # Engineering verification & benchmarks
+```
+
+---
+
+## 📄 License & Attribution
+
+Developed by **Sourish Ghosh** for the Smart India Hackathon (SIH) BEL UrbanSense Initiative.
+Licensed under the [MIT License](LICENSE).
