@@ -98,156 +98,160 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-  <!-- ================= TOP NAVIGATION BAR ================= -->
-  <header class="glass-panel relative z-30 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/95 backdrop-blur-xl">
-    <div class="flex items-center gap-3.5">
-      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/25">
-        <i data-lucide="bus" class="w-5 h-5 text-white"></i>
-      </div>
-      <div>
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-lg font-black tracking-tight bg-gradient-to-r from-white via-cyan-100 to-blue-300 bg-clip-text text-transparent font-heading">BEL URBANSENSE</span>
-          <span class="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">BHARAT ELECTRONICS LIMITED</span>
-          <span class="hidden sm:inline-block text-[9px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">PUBLIC TRANSPORT FLEET AI</span>
+  <!-- ================= UNIFIED CONTINUOUS COMMAND DECK (ALWAYS PINNED & CONTINUOUS) ================= -->
+  <div id="stickyCommandDeck" class="sticky top-0 z-[5000] w-full bg-[#080c14]/95 backdrop-blur-xl border-b border-slate-800 shadow-2xl transition-all">
+    
+    <!-- TOP NAVIGATION BAR -->
+    <header class="px-5 lg:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800/60">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
+          <i data-lucide="bus" class="w-4.5 h-4.5 text-white"></i>
         </div>
-        <p class="text-[11px] text-slate-400 hidden md:block">AI-Powered Mobile Urban Intelligence Platform Using Public Transport Bus Fleet</p>
-      </div>
-    </div>
-
-    <!-- Live Telemetry Status & Quick Action Buttons -->
-    <div class="flex items-center gap-2 flex-wrap">
-      <div class="flex items-center gap-2 px-2.5 py-1 rounded-lg glass-card text-xs">
-        <span class="relative flex h-2.5 w-2.5">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-        </span>
-        <span class="font-medium text-slate-300 text-xs" id="serverStatusText">Fleet Online</span>
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-blue-300 bg-clip-text text-transparent font-heading">BEL URBANSENSE</span>
+            <span class="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">BHARAT ELECTRONICS LIMITED</span>
+            <span class="text-[9px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">PUBLIC TRANSPORT FLEET AI</span>
+          </div>
+          <p class="text-[11px] text-slate-400">AI-Powered Mobile Urban Intelligence Platform Using Public Transport Bus Fleet</p>
+        </div>
       </div>
 
-      <!-- Demo Playback Toggle -->
-      <button id="btnToggleSim" onclick="toggleSimStream()" class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition cursor-pointer">
-        <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
-        <span id="btnSimStreamText">Open Video Stream (BUS-101)</span>
-      </button>
+      <!-- Live Telemetry Status & Quick Action Buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg glass-card text-xs">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="font-medium text-slate-300 text-[11px]" id="serverStatusText">Edge-AI Fleet Online</span>
+        </div>
 
-      <!-- 1-Click Presentation Scenario Triggers -->
-      <div class="flex items-center gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 text-xs">
-        <button onclick="triggerScenario('offending_vehicle')" title="Simulate Hit-and-Run / Rash Driving with ANPR plate extraction" class="px-2 py-1 rounded-md bg-rose-600/80 hover:bg-rose-600 text-white font-medium flex items-center gap-1 text-xs">
-          <i data-lucide="shield-alert" class="w-3 h-3"></i>
-          <span>ANPR Alert</span>
+        <!-- Demo Playback Toggle -->
+        <button id="btnToggleSim" onclick="toggleSimStream()" class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+          <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
+          <span id="btnSimStreamText">Open Video Stream (BUS-101)</span>
         </button>
 
-        <button onclick="triggerScenario('traffic_bottleneck')" title="Simulate Vehicle Density Congestion Bottleneck" class="px-2 py-1 rounded-md bg-amber-600/80 hover:bg-amber-600 text-white font-medium flex items-center gap-1 text-xs">
-          <i data-lucide="traffic-cone" class="w-3 h-3"></i>
-          <span>Bottleneck</span>
+        <!-- 1-Click Presentation Scenario Triggers -->
+        <div class="flex items-center gap-1 bg-slate-900/80 p-0.5 rounded-lg border border-slate-800 text-xs">
+          <button onclick="triggerScenario('offending_vehicle')" title="Simulate Hit-and-Run / Rash Driving with ANPR plate extraction" class="px-2 py-1 rounded-md bg-rose-600/80 hover:bg-rose-600 text-white font-medium flex items-center gap-1 text-[11px]">
+            <i data-lucide="shield-alert" class="w-3 h-3"></i>
+            <span>ANPR Alert</span>
+          </button>
+
+          <button onclick="triggerScenario('traffic_bottleneck')" title="Simulate Vehicle Density Congestion Bottleneck" class="px-2 py-1 rounded-md bg-amber-600/80 hover:bg-amber-600 text-white font-medium flex items-center gap-1 text-[11px]">
+            <i data-lucide="traffic-cone" class="w-3 h-3"></i>
+            <span>Bottleneck</span>
+          </button>
+
+          <button onclick="triggerScenario('pedestrian_safety')" title="Simulate School Children / Pedestrian Safety Warning" class="px-2 py-1 rounded-md bg-purple-600/80 hover:bg-purple-600 text-white font-medium flex items-center gap-1 text-[11px]">
+            <i data-lucide="users" class="w-3 h-3"></i>
+            <span>School Zone</span>
+          </button>
+
+          <button onclick="triggerScenario('missing_infrastructure')" title="Simulate Missing Road Divider / Zebra Crossing / Signboard" class="px-2 py-1 rounded-md bg-cyan-600/80 hover:bg-cyan-600 text-white font-medium flex items-center gap-1 text-[11px]">
+            <i data-lucide="split" class="w-3 h-3"></i>
+            <span>Infra Defect</span>
+          </button>
+        </div>
+
+        <!-- 1-Click Reset Counters for Presentations -->
+        <button onclick="resetTripSession()" title="Reset live session trip counters to 0 for a fresh live demo" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 shadow-sm transition cursor-pointer text-[11px]">
+          <i data-lucide="rotate-ccw" class="w-3 h-3 text-cyan-400"></i>
+          <span>Reset (0)</span>
         </button>
 
-        <button onclick="triggerScenario('pedestrian_safety')" title="Simulate School Children / Pedestrian Safety Warning" class="px-2 py-1 rounded-md bg-purple-600/80 hover:bg-purple-600 text-white font-medium flex items-center gap-1 text-xs">
-          <i data-lucide="users" class="w-3 h-3"></i>
-          <span>School Zone</span>
+        <!-- Edge AI Offline Badge -->
+        <div class="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-semibold">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+          <span>100% Offline Edge-AI</span>
+        </div>
+
+        <button onclick="openMobileModal()" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition text-[11px]">
+          <i data-lucide="smartphone" class="w-3 h-3"></i>
+          <span>Mobile Node</span>
         </button>
-
-        <button onclick="triggerScenario('missing_infrastructure')" title="Simulate Missing Road Divider / Zebra Crossing / Signboard" class="px-2 py-1 rounded-md bg-cyan-600/80 hover:bg-cyan-600 text-white font-medium flex items-center gap-1 text-xs">
-          <i data-lucide="split" class="w-3 h-3"></i>
-          <span>Infra Defect</span>
-        </button>
       </div>
+    </header>
 
-      <!-- 1-Click Reset Counters for Presentations -->
-      <button onclick="resetTripSession()" title="Reset live session trip counters to 0 for a fresh live demo" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 shadow-sm transition cursor-pointer">
-        <i data-lucide="rotate-ccw" class="w-3 h-3 text-cyan-400"></i>
-        <span>Reset (0)</span>
-      </button>
-
-      <!-- Edge AI Offline Badge -->
-      <div class="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-semibold">
-        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-        <span>100% Offline Edge-AI</span>
-      </div>
-
-      <button onclick="openMobileModal()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer">
-        <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
-        <span>Mobile Node</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- ================= KPI STATS BAR (PROMINENT ROAD DEFECTS, TRAFFIC & ANPR METRICS) ================= -->
-  <section class="relative z-20 px-6 py-2.5 grid grid-cols-2 md:grid-cols-5 gap-2.5 bg-slate-950/85 border-b border-slate-800/80">
-    <div class="glass-card px-3.5 py-2 rounded-xl flex items-center justify-between border-l-4 border-cyan-500 shadow-sm">
-      <div>
-        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Active Bus Fleet</p>
-        <div class="flex items-baseline gap-1.5 mt-0.5">
-          <h3 class="text-xl font-extrabold text-cyan-400 font-heading" id="statActiveBuses">2</h3>
-          <span class="text-[9px] text-cyan-300/80 font-mono" id="statActiveBusesSub">Buses On Route</span>
+    <!-- KPI STATS BAR (MATCHING BEL PROBLEM STATEMENT) -->
+    <section class="px-5 lg:px-6 py-2 grid grid-cols-2 md:grid-cols-5 gap-2.5 bg-slate-950/40">
+      <div class="glass-card p-2.5 sm:p-3 rounded-xl flex items-center justify-between border border-cyan-500/30 bg-slate-900/60">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Active Bus Fleet</p>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <h3 class="text-xl sm:text-2xl font-extrabold text-cyan-400 font-heading" id="statActiveBuses">2</h3>
+            <span class="text-[10px] text-slate-400 font-mono" id="statActiveBusesSub">Buses On Standby</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 shrink-0">
+          <i data-lucide="bus" class="w-4 h-4"></i>
         </div>
       </div>
-      <div class="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
-        <i data-lucide="bus" class="w-4 h-4"></i>
-      </div>
-    </div>
 
-    <div class="glass-card px-3.5 py-2 rounded-xl flex items-center justify-between border-l-4 border-rose-500 shadow-sm">
-      <div>
-        <p class="text-[10px] text-rose-300 font-bold uppercase tracking-wider">Road & Infra Defects</p>
-        <div class="flex items-baseline gap-1.5 mt-0.5">
-          <h3 class="text-xl font-extrabold text-rose-400 font-heading" id="statTotalDefects">0</h3>
-          <span class="text-[9px] text-rose-400/90 font-mono" id="statPotholesCount">Potholes/Infra</span>
+      <div class="glass-card p-2.5 sm:p-3 rounded-xl flex items-center justify-between border border-rose-500/30 bg-slate-900/60">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Road & Infra Defects</p>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <h3 class="text-xl sm:text-2xl font-extrabold text-rose-400 font-heading" id="statTotalDefects">0</h3>
+            <span class="text-[10px] text-rose-400/80 font-mono" id="statPotholesCount">Standby (Stream Off)</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400 shrink-0">
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
         </div>
       </div>
-      <div class="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
-        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-      </div>
-    </div>
 
-    <div class="glass-card px-3.5 py-2 rounded-xl flex items-center justify-between border-l-4 border-amber-500 shadow-sm">
-      <div>
-        <p class="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Traffic Congestion</p>
-        <div class="flex items-baseline gap-1.5 mt-0.5">
-          <h3 class="text-xl font-extrabold text-amber-400 font-heading" id="statCongestion">0</h3>
-          <span class="text-[9px] text-amber-400/90 font-mono" id="statCongestionSub">Bottlenecks</span>
+      <div class="glass-card p-2.5 sm:p-3 rounded-xl flex items-center justify-between border border-amber-500/30 bg-slate-900/60">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Traffic Congestion</p>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <h3 class="text-xl sm:text-2xl font-extrabold text-amber-400 font-heading" id="statCongestion">0</h3>
+            <span class="text-[10px] text-amber-400/80 font-mono" id="statCongestionSub">Standby (Normal Flow)</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+          <i data-lucide="activity" class="w-4 h-4"></i>
         </div>
       </div>
-      <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
-        <i data-lucide="activity" class="w-4 h-4"></i>
-      </div>
-    </div>
 
-    <div class="glass-card px-3.5 py-2 rounded-xl flex items-center justify-between border-l-4 border-blue-500 shadow-sm">
-      <div>
-        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Route Delay (Avg)</p>
-        <div class="flex items-baseline gap-1.5 mt-0.5">
-          <h3 class="text-xl font-extrabold text-blue-400 font-heading" id="statAvgDelay">2.5</h3>
-          <span class="text-[9px] text-blue-300/80 font-mono" id="statAvgDelaySub">Minutes</span>
+      <div class="glass-card p-2.5 sm:p-3 rounded-xl flex items-center justify-between border border-blue-500/30 bg-slate-900/60">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Route Delay (Avg)</p>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <h3 class="text-xl sm:text-2xl font-extrabold text-blue-400 font-heading" id="statAvgDelay">0.0</h3>
+            <span class="text-[10px] text-slate-400 font-mono" id="statAvgDelaySub">Minutes (Nominal)</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
+          <i data-lucide="clock" class="w-4 h-4"></i>
         </div>
       </div>
-      <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
-        <i data-lucide="clock" class="w-4 h-4"></i>
-      </div>
-    </div>
 
-    <div class="glass-card px-3.5 py-2 rounded-xl flex items-center justify-between border-l-4 border-purple-500 shadow-sm">
-      <div>
-        <p class="text-[10px] text-purple-300 font-bold uppercase tracking-wider">ANPR / Safety Alerts</p>
-        <div class="flex items-baseline gap-1.5 mt-0.5">
-          <h3 class="text-xl font-extrabold text-purple-400 font-heading" id="statOffending">0</h3>
-          <span class="text-[9px] text-purple-400/90 font-mono" id="statOffendingSub">Rash Driving</span>
+      <div class="glass-card p-2.5 sm:p-3 rounded-xl flex items-center justify-between border border-purple-500/30 bg-slate-900/60">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">ANPR / Safety Alerts</p>
+          <div class="flex items-baseline gap-1.5 mt-0.5">
+            <h3 class="text-xl sm:text-2xl font-extrabold text-purple-400 font-heading" id="statOffending">0</h3>
+            <span class="text-[10px] text-purple-400/80 font-mono" id="statOffendingSub">Standby (Idle)</span>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 shrink-0">
+          <i data-lucide="shield-alert" class="w-4 h-4"></i>
         </div>
       </div>
-      <div class="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
-        <i data-lucide="shield-alert" class="w-4 h-4"></i>
-      </div>
-    </div>
-  </section>
+    </section>
+  </div>
 
   <!-- ================= MAIN CONTENT SPLIT VIEW ================= -->
-  <main class="flex-1 px-6 py-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative z-10 isolate">
+  <main class="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start relative z-10 isolate">
     
     <!-- LEFT: GIS MAP & URBAN OPERATIONS CONSOLE (7 cols on desktop, order-2 on mobile) -->
-    <div class="lg:col-span-7 flex flex-col gap-3.5 order-2 lg:order-1">
+    <div class="lg:col-span-7 flex flex-col gap-4 order-2 lg:order-1">
       
       <!-- Leaflet Map Container (Isolated Stacking Context so Leaflet panes never overlap sticky header) -->
-      <div class="glass-card p-3.5 rounded-2xl flex flex-col relative isolate z-10">
+      <div class="glass-card p-4 rounded-2xl flex flex-col relative min-h-[480px] isolate z-10">
         <!-- Map Controls Header -->
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-2">
@@ -335,8 +339,8 @@
         </div>
 
         <!-- Leaflet Map Div with Floating Locator HUD & Route Symbology Card -->
-        <div class="relative w-full flex-1 rounded-xl overflow-hidden border border-slate-800 h-[370px] min-h-[320px]">
-          <div id="map" class="w-full h-full min-h-[320px]"></div>
+        <div class="relative w-full flex-1 rounded-xl overflow-hidden border border-slate-800 min-h-[400px]">
+          <div id="map" class="w-full h-full min-h-[400px]"></div>
 
           <!-- Floating Bus Quick Locator Pill on Map (Dynamically tracks checked bus) -->
           <div class="absolute top-3 left-14 z-[1000] flex items-center gap-2">
@@ -540,10 +544,10 @@
     </div>
 
     <!-- RIGHT: MULTI-CAMERA ONBOARD SENSING FEED (5 cols on desktop, order-1 on mobile) -->
-    <div class="lg:col-span-5 flex flex-col gap-3.5 order-1 lg:order-2">
+    <div class="lg:col-span-5 flex flex-col gap-4 order-1 lg:order-2 relative z-10 isolate">
       
       <!-- Multi-Camera Video Player Panel -->
-      <div class="glass-card p-3.5 rounded-2xl flex flex-col">
+      <div class="glass-card p-4 rounded-2xl flex flex-col isolate z-10 relative">
         <!-- Camera Selector Header -->
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
@@ -1043,7 +1047,7 @@
 
       markersLayer = L.layerGroup().addTo(map);
 
-      // Invalidate size on load and resize to ensure crystal-clear tile rendering
+      // Invalidate size on resize and load to guarantee flawless tile and bounds alignment
       window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
       setTimeout(() => { if (map) map.invalidateSize(); }, 350);
     }
