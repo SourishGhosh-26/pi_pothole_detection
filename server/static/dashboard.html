@@ -40,7 +40,7 @@
       background: transparent !important;
       border: none !important;
       overflow: visible !important;
-      z-index: 99999 !important;
+      z-index: 1000 !important;
       pointer-events: auto !important;
     }
     .leaflet-popup-content-wrapper {
@@ -99,7 +99,7 @@
 <body class="min-h-screen flex flex-col">
 
   <!-- ================= TOP NAVIGATION BAR ================= -->
-  <header class="glass-panel sticky top-0 z-40 px-6 py-3 flex flex-wrap items-center justify-between border-b border-slate-800">
+  <header class="glass-panel sticky top-0 z-[5000] px-6 py-3 flex flex-wrap items-center justify-between border-b border-slate-800 bg-slate-950/95 backdrop-blur-xl shadow-xl">
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
@@ -175,7 +175,7 @@
   </header>
 
   <!-- ================= KPI STATS BAR (MATCHING BEL PROBLEM STATEMENT) ================= -->
-  <section class="px-6 py-3.5 grid grid-cols-2 md:grid-cols-5 gap-3 bg-slate-950/60 border-b border-slate-800/80">
+  <section class="relative z-20 px-6 py-3.5 grid grid-cols-2 md:grid-cols-5 gap-3 bg-slate-950/60 border-b border-slate-800/80">
     <div class="glass-card p-3.5 rounded-xl flex items-center justify-between">
       <div>
         <p class="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Active Bus Fleet</p>
@@ -243,13 +243,13 @@
   </section>
 
   <!-- ================= MAIN CONTENT SPLIT VIEW ================= -->
-  <main class="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+  <main class="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start relative z-10 isolate">
     
     <!-- LEFT: GIS MAP & URBAN OPERATIONS CONSOLE (7 cols on desktop, order-2 on mobile) -->
     <div class="lg:col-span-7 flex flex-col gap-4 order-2 lg:order-1">
       
-      <!-- Leaflet Map Container -->
-      <div class="glass-card p-4 rounded-2xl flex flex-col relative min-h-[480px]">
+      <!-- Leaflet Map Container (Isolated Stacking Context so Leaflet panes never overlap sticky header) -->
+      <div class="glass-card p-4 rounded-2xl flex flex-col relative min-h-[480px] isolate z-10">
         <!-- Map Controls Header -->
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-2">
@@ -1371,7 +1371,7 @@
                 View Full Forensic Snapshot
               </button>
             </div>
-          `);
+          `, { autoPan: true, autoPanPaddingTopLeft: [20, 70], autoPanPaddingBottomRight: [20, 20], keepInView: true });
         } else if (isCongestion) {
           m.bindTooltip(`
             <div class="text-xs font-mono p-1">
@@ -1387,7 +1387,7 @@
               ${det.plate_number ? `<div class="font-mono text-rose-400 font-bold">ANPR: ${det.plate_number}</div>` : ''}
               <div class="text-[10px] text-cyan-400">Bus: ${det.bus_id || 'BUS-104'} | Conf: ${Math.round(det.confidence * 100)}%</div>
             </div>
-          `);
+          `, { autoPan: true, autoPanPaddingTopLeft: [20, 70], autoPanPaddingBottomRight: [20, 20], keepInView: true });
         } else {
           m.bindPopup(`
             <div class="p-1 space-y-1 text-xs">
@@ -1396,7 +1396,7 @@
               ${det.plate_number ? `<div class="font-mono text-rose-400 font-bold">ANPR: ${det.plate_number}</div>` : ''}
               <div class="text-[10px] text-cyan-400">Bus: ${det.bus_id || 'BUS-101'} | Conf: ${Math.round(det.confidence * 100)}%</div>
             </div>
-          `);
+          `, { autoPan: true, autoPanPaddingTopLeft: [20, 70], autoPanPaddingBottomRight: [20, 20], keepInView: true });
         }
 
         m.on('click', () => selectEvent(det));
@@ -1456,9 +1456,9 @@
       if (!mobileUnitMarker) {
         mobileUnitMarker = L.marker([lat, lon], {
           icon: mobileIcon,
-          zIndexOffset: 100000
+          zIndexOffset: 2000
         }).addTo(map);
-        mobileUnitMarker.bindPopup(popupHtml);
+        mobileUnitMarker.bindPopup(popupHtml, { autoPan: true, autoPanPaddingTopLeft: [20, 70], autoPanPaddingBottomRight: [20, 20], keepInView: true });
         mobileUnitMarker.on('click', () => {
           openVideoStream('MOBILE-CAM');
         });
@@ -1580,9 +1580,9 @@
         if (!busMarkers[busId]) {
           busMarkers[busId] = L.marker([b.current_lat || b.lat, b.current_lon || b.lon], { 
             icon: busIcon,
-            zIndexOffset: 99999 
+            zIndexOffset: 2000 
           }).addTo(map);
-          busMarkers[busId].bindPopup(popupHtml);
+          busMarkers[busId].bindPopup(popupHtml, { autoPan: true, autoPanPaddingTopLeft: [20, 70], autoPanPaddingBottomRight: [20, 20], keepInView: true });
           busMarkers[busId].on('click', () => {
             switchCameraBus(busId, false);
             selectBusRoute(busId, false);
@@ -1590,7 +1590,7 @@
         } else {
           busMarkers[busId].setLatLng([b.current_lat || b.lat, b.current_lon || b.lon]);
           busMarkers[busId].setIcon(busIcon);
-          busMarkers[busId].setZIndexOffset(99999);
+          busMarkers[busId].setZIndexOffset(2000);
           busMarkers[busId].setPopupContent(popupHtml);
         }
 
