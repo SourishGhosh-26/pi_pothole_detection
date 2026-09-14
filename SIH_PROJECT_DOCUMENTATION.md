@@ -100,8 +100,9 @@ As public buses navigate scheduled city routes daily, onboard low-cost edge comp
 | **Dashboard Frontend** | **Vanilla HTML5, CSS3 & ES6+ JavaScript** | Ultra-responsive Glassmorphism dark-mode UI with live Telemetry HUD, multi-tab CRM, and bandwidth savings meter. |
 | **Mobile Edge Sensing** | **HTML5 MediaDevices & Geolocation API** | Native smartphone camera (`getUserMedia`) and GPS geolocation (`watchPosition`) streaming over encrypted WSS. |
 | **Security & Encryption** | **OpenSSL (Self-Signed TLS Certificates)** | Generates `cert.pem` and `key.pem` to satisfy mobile browser HTTPS security requirements on local LAN. |
-| **Remote Demonstration** | **Pinggy / Cloudflare Tunnel / Ngrok** | 1-click tunneling scripts (`SHARE_ONLINE_TUNNEL.bat`) exposing the local dashboard and camera portal securely to remote evaluators. |
-| **Database & Clustering** | **SQLite & Custom Spatial DBSCAN** | Persistent storage of verified hazards, deduplicating repetitive alerts within 15 meters and 60 seconds. |
+| **Array & Numerical Analytics** | **NumPy (`numpy`)** | High-speed array manipulation, pixel intensity statistics, and cavity contrast difference computation (`mean_diff`). |
+| **Local Peer-to-Peer Networking** | **Local Wi-Fi / Hotspot LAN (`SHOW_MY_IP.bat`)** | Direct offline communication between edge smartphone camera and central dashboard via local IP; zero external internet or third-party cloud dependency. |
+| **Database & Clustering** | **SQLite & Custom Spatial DBSCAN** | Persistent storage of verified hazards, deduplicating repetitive alerts within 15 meters and 60 seconds (`server/cluster.py`). |
 
 ---
 
