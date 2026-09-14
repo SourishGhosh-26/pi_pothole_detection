@@ -320,11 +320,13 @@
     <video id="videoElement" autoplay playsinline webkit-playsinline muted></video>
     <canvas id="simCanvas"></canvas>
     <canvas id="captureCanvas" style="display:none;"></canvas>
+    <!-- Live AI Vision Overlay with YOLO Bounding Boxes & Perception HUD -->
+    <img id="aiProcessedFeed" style="display:none; width:100%; height:100%; object-fit:cover; position:absolute; inset:0; z-index:2; pointer-events:none;" />
 
-    <div class="hud-overlay">
+    <div class="hud-overlay" style="z-index: 10;">
       <div class="hud-top-bar">
+        <span id="camSourceBadge" style="background: rgba(16,185,129,0.25); border: 1px solid #10b981; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.68rem; color: #10b981;">🟢 REAL CAMERA</span>
         <span id="hudFps">0.0 FPS</span>
-        <span id="hudResolution">640x480</span>
         <span id="hudFramesCount">SENT: 0</span>
       </div>
       <div class="hud-target"></div>
@@ -364,12 +366,17 @@
         </svg>
         Flip Cam
       </button>
-      <button class="btn-secondary" onclick="toggleSimMode()">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <button class="btn-secondary" id="btnAiVisionToggle" onclick="toggleAiVision()">
+        🤖 AI HUD: ON
+      </button>
+    </div>
+    <div class="control-row" style="margin-top: -4px;">
+      <button class="btn-secondary" onclick="toggleSimMode()" style="grid-column: span 2; font-size: 0.8rem;">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="10"></circle>
           <polygon points="10 8 16 12 10 16 10 8"></polygon>
         </svg>
-        <span id="btnSimText">Sim Road</span>
+        <span id="btnSimText">Switch to Demo Simulated Road</span>
       </button>
     </div>
 
@@ -519,6 +526,13 @@
         simCanvas.style.display = 'none';
         const warning = document.getElementById('httpsWarning');
         if (warning) warning.style.display = 'none';
+        const badge = document.getElementById('camSourceBadge');
+        if (badge) {
+          badge.innerText = "🟢 REAL CAMERA";
+          badge.style.borderColor = "#10b981";
+          badge.style.color = "#10b981";
+          badge.style.background = "rgba(16,185,129,0.25)";
+        }
       } catch (err) {
         console.warn('Camera access error:', err);
         showPhoneToast(`Camera access blocked: ${err.name || 'Denied'}. Using Sim Road.`, "error");
@@ -652,6 +666,10 @@
     function toggleSimMode() {
       isSimMode = !isSimMode;
       const btnSimText = document.getElementById('btnSimText');
+      const badge = document.getElementById('camSourceBadge');
+      const aiImg = document.getElementById('aiProcessedFeed');
+      if (aiImg) aiImg.style.display = 'none';
+
       if (isSimMode) {
         if (currentStream) {
           currentStream.getTracks().forEach(t => t.stop());
@@ -659,10 +677,22 @@
         }
         videoEl.style.display = 'none';
         simCanvas.style.display = 'block';
-        btnSimText.innerText = "Real Cam";
+        if (btnSimText) btnSimText.innerText = "Switch to Real Phone Camera";
+        if (badge) {
+          badge.innerText = "🟡 SIMULATED ROAD (Demo)";
+          badge.style.borderColor = "#f59e0b";
+          badge.style.color = "#f59e0b";
+          badge.style.background = "rgba(245,158,11,0.25)";
+        }
         drawSimRoad();
       } else {
-        btnSimText.innerText = "Sim Road";
+        if (btnSimText) btnSimText.innerText = "Switch to Demo Simulated Road";
+        if (badge) {
+          badge.innerText = "🟢 REAL CAMERA";
+          badge.style.borderColor = "#10b981";
+          badge.style.color = "#10b981";
+          badge.style.background = "rgba(16,185,129,0.25)";
+        }
         initCamera();
       }
     }
@@ -776,7 +806,11 @@
             if (data.type === "LIVE_FRAME" && (data.is_mobile || data.bus_id === "MOBILE-CAM")) {
               updateLivePerceptionHUD(data);
             } else if (data.type === "NEW_DETECTION") {
-              onHazardDetected(data.detection);
+              const det = data.detection;
+              // CRITICAL: ONLY alert for hazards detected by THIS phone's camera!
+              if (det && (det.bus_id === "MOBILE-CAM" || det.is_mobile)) {
+                onHazardDetected(det);
+              }
             } else if (data.type === "MOBILE_FOCUS_UPDATE") {
               syncProblemFocusUI(data.focus);
             }
@@ -788,10 +822,29 @@
     }
 
     let perceptionResetTimer = null;
+    let showAiOverlay = true;
+
+    function toggleAiVision() {
+      showAiOverlay = !showAiOverlay;
+      const btn = document.getElementById('btnAiVisionToggle');
+      const aiImg = document.getElementById('aiProcessedFeed');
+      if (btn) btn.innerText = showAiOverlay ? "🤖 AI HUD: ON" : "📷 AI HUD: OFF";
+      if (!showAiOverlay && aiImg) {
+        aiImg.style.display = 'none';
+      }
+    }
 
     function updateLivePerceptionHUD(frameData) {
       const probLabel = document.getElementById('currentDetectedProblemLabel');
-      if (!probLabel) return;
+      const aiImg = document.getElementById('aiProcessedFeed');
+
+      // Display live AI-annotated frames with bounding boxes directly on phone viewfinder
+      if (frameData.image && showAiOverlay && isStreaming) {
+        if (aiImg) {
+          aiImg.src = frameData.image;
+          aiImg.style.display = 'block';
+        }
+      }
 
       if (frameData.has_detections) {
         if (perceptionResetTimer) {
@@ -1053,6 +1106,8 @@
         if (ingestWs) ingestWs.close();
         if (gpsWs) gpsWs.close();
         if (liveWs) liveWs.close();
+        const aiImg = document.getElementById('aiProcessedFeed');
+        if (aiImg) aiImg.style.display = 'none';
         updateStatus(false);
       }
     }
