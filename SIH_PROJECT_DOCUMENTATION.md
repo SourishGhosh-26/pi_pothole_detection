@@ -1,15 +1,20 @@
 # BEL UrbanSense (PatchSense) — Smart India Hackathon (SIH) Complete Project Documentation
 
-**Project Title:** Autonomous Edge-AI Road Hazard Perception & Dynamic Transit Intelligence Platform  
-**Target Organization / Theme:** Bharat Electronics Limited (BEL) / Smart Automation & Smart Vehicles  
-**Author / Team Lead:** Sourish Ghosh ([@SourishGhosh-26](https://github.com/SourishGhosh-26))  
+**Project Title:** AI-Powered Mobile Urban Intelligence Platform using Public Transport Fleet 
+**Target Organization / Theme:** Bharat Electronics Limited (BEL) / Smart Automation  
+**Author:** Sourish Ghosh ([@SourishGhosh-26](https://github.com/SourishGhosh-26))  
 **Repository:** [https://github.com/SourishGhosh-26/pi_pothole_detection](https://github.com/SourishGhosh-26/pi_pothole_detection)  
 
 ---
 
 ## 1. Executive Summary & Problem Statement
 
-### 1.1 The Urban Challenge
+### 1.1 Description
+Background Urban public transport buses traverse almost every major road in a city every day. Modern buses are increasingly equipped with multiple cameras covering the front, rear, sides, and passenger cabin. However, these cameras are primarily used for recording incidents and are not leveraged as intelligent sensing platforms. At the same time, city authorities rely on fixed CCTV cameras, manual inspections and citizen complaints to identify road defects, traffic congestion,missing infrastructure and unsafe driving behaviour. This results in delayed response,incomplete situational awareness and inefficient maintenance planning.
+• Description Develop an AI-powered onboard and centralized software platform that transforms public transport buses into mobile urban sensing units. The onboard software shall analyse video streams from multiple bus-mounted cameras to detect road defects such as potholes, damaged roads, missing road dividers, missing zebra crossings, damaged or missing traffic signboards,waterlogging and other road hazards. It shall estimate vehicle density through vehicle detection, classification and counting, identify traffic bottlenecks, and detect vulnerable pedestrian situations such as school children crossing roads. During incidents such as hit-and-run or rash driving, the system should detect and track the offending vehicle, extract the registration number with a confidence score, timestamp and GPS location, and securely share alerts with a central command system. The centralized platform shall aggregate information from the entire bus fleet, visualize events on a GIS map, generate congestion heat maps,identify infrastructure deficiencies, analyse originâ€“destination traffic patterns, estimate route delays and provide actionable insights for transport authorities.
+• Expected Solution The solution should provide an edge-AI onboard processing framework integrated with a centralized urban intelligence platform. It should generate reliable alerts, GIS-based dashboards, road condition maps, traffic analytics and incident reports to support proactive road maintenance, improved traffic management, enhanced public safety and evidence-based decision making while minimizing bandwidth through intelligent edge processing.
+
+### 1.2 The Urban Challenge
 In India, poor road infrastructure and unmonitored road surface degradation cause over **150,000 fatal road accidents annually**, with thousands directly attributed to deep potholes, sudden asphalt fissures, and unexpected waterlogging. Furthermore, traffic congestion bottlenecks lead to millions of lost man-hours and severe fuel wastage.
 
 Currently, municipal bodies (like PWD, NHAI, and Municipal Corporations) rely on:
@@ -17,7 +22,7 @@ Currently, municipal bodies (like PWD, NHAI, and Municipal Corporations) rely on
 2. **Citizen Complaint Apps**: Unreliable, low coverage, late reporting, and lack precise geo-tagging or standardized severity metrics.
 3. **Fixed CCTV Cameras**: Extremely costly to install across entire city road networks, susceptible to blind spots, and incapable of detecting low-profile asphalt cavities.
 
-### 1.2 The Innovation: Turning Transit Fleets into Mobile Edge Scanners
+### 1.3 The Innovation: Turning Transit Fleets into Mobile Edge Scanners
 **BEL UrbanSense** transforms existing urban moving assets—**public transport buses (SRTU/KSTC/DTC/BEST), municipal vehicles, and smartphones**—into an autonomous, continuous urban sensing network. 
 
 As public buses navigate scheduled city routes daily, onboard low-cost edge computing nodes continuously scan the road surface, count vehicles, monitor pedestrian crossings, read license plates during traffic violations, and geotag hazards in real time.
@@ -167,190 +172,3 @@ As public buses navigate scheduled city routes daily, onboard low-cost edge comp
    - Connect the central backend directly to the Government of India's **Integrated Command and Control Centres (ICCC)** and the national **VAHAN / SARATHI** portals for automatic traffic challan generation.
 5. **Citizen Crowdsourcing & Gamified Redressal**:
    - Provide a lightweight mobile app allowing auto-rickshaw and cab drivers to earn transit subsidies or toll credits by contributing edge road scan telemetry.
-
----
-
-## 6. SIH Slide-by-Slide Presentation Deck Outline (PPT Ready)
-
-Use the 11 slides below as the exact layout for your PowerPoint or Google Slides presentation.
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 1: TITLE & TEAM CREDENTIALS                        |
-+-------------------------------------------------------------------------------+
-| Title: BEL UrbanSense                                                         |
-| Subtitle: Autonomous Edge-AI Transit Perception & Dynamic Route Optimization  |
-| Theme: Smart Automation / Smart Vehicles | Category: Software / Edge AI       |
-| Organization: Bharat Electronics Limited (BEL)                                |
-| Team Leader & Developer: Sourish Ghosh                                        |
-| Key Visual: High-tech dark-mode dashboard mockup with bus GIS overlay         |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Good morning, respected judges. We present BEL UrbanSense, an intelligent edge-computing platform that transforms everyday public transit buses into autonomous road-auditing scanners."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 2: PROBLEM STATEMENT & MOTIVATION                  |
-+-------------------------------------------------------------------------------+
-| Key Pain Points:                                                              |
-| • 150,000+ Fatal Accidents annually on Indian roads; thousands caused by      |
-|   undetected potholes and asphalt failures.                                   |
-| • Manual road inspection surveys cost crores and take months to compile.      |
-| • High-resolution video streaming from hundreds of buses over 4G/5G is        |
-|   financially and technically infeasible due to bandwidth costs.              |
-| • Existing citizen reporting apps have low adoption and lack GPS accuracy.    |
-| Visual: Comparison graphic showing manual audit delay vs. automated edge scan |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Manual road audits are slow, reactive, and expensive. City administrations face a blind spot between road damage occurring and repair teams arriving. We need continuous, automated road health surveillance without expensive 4G video streaming."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 3: OUR SOLUTION — THE CORE CONCEPT                 |
-+-------------------------------------------------------------------------------+
-| Core Innovation:                                                              |
-| • Leverage Existing Assets: Mount edge-AI cameras on public transit buses.    |
-| • Onboard Edge AI: Runs inference locally; filters clean roads.               |
-| • Bandwidth Minimizer: Sends ~400 byte telemetry only when hazards appear.     |
-| • Centralized GIS Command: Live city-wide dashboard for PWD & Police.         |
-| • Dynamic Transit Detours: Bus rerouting around severe road damage corridors. |
-| Visual: Public bus with front dashcam detecting potholes and beaming telemetry|
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Instead of dedicated inspection vehicles, thousands of public buses already travel every city road daily. By equipping them with edge computing, we create an always-on, zero-extra-vehicle sensing grid."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 4: SYSTEM ARCHITECTURE & DATA FLOW                 |
-+-------------------------------------------------------------------------------+
-| Architecture Layers:                                                          |
-| 1. Edge Sensing Layer: Dashcam / Smartphone camera + GPS receiver.            |
-| 2. Edge Processing Layer: YOLOv5n ONNX + Asphalt Texture Verification.        |
-| 3. Transport Layer: WebSockets / WSS over 4G/5G (JSON Telemetry + Snapshots).  |
-| 4. Spatial Deduplication Layer: DBSCAN (15m radius, 60s temporal clustering).|
-| 5. GIS Operations Layer: Leaflet Vector Map + Automated PWD CRM Work Orders.  |
-| Visual: Architecture Block Diagram (Edge Node ➔ Bandwidth Filter ➔ Server)    |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Our architecture separates high-speed local computer vision from lightweight cloud synchronization. Video never leaves the edge node unless an incident is validated, reducing network load by over 98%."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 5: EDGE-AI COMPUTER VISION ENGINE                  |
-+-------------------------------------------------------------------------------+
-| Multi-Task Capabilities:                                                      |
-| • Deep Learning: Ultralytics YOLOv5n ONNX running via OpenCV 5.0 CPU DNN.     |
-| • Zero False Alarms: Pavement texture verification filter rejects walls,      |
-|   desks, ceilings, and indoor background objects.                             |
-| • Contour Cavity Contrast: Distinguishes physical potholes from surface paint.|
-| • Multi-Class Road Safety: Pedestrian safety (aspect H/W >= 1.50), traffic    |
-|   density bottleneck estimation, and waterlogging gloss detection.            |
-| Visual: Side-by-side detection frames showing bounding boxes & cavity contours|
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "A common failure of road AI models is triggering false alarms on indoor objects or shadows. Our hybrid engine pairs neural object detection with asphalt texture verification, guaranteeing high industrial precision."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 6: ANPR & LAW ENFORCEMENT INTEGRATION              |
-+-------------------------------------------------------------------------------+
-| Key Features:                                                                 |
-| • Automatic Number Plate Recognition (ANPR): Extracts license plate strings.  |
-| • Offending Vehicle Incident Register: Flags rash driving & hit-and-run cars. |
-| • Instant Police Geotag: Logs exact GPS coordinates, speed, and timestamp.    |
-| • Sovereign VAHAN Database Compatibility: Ready for automated e-challans.     |
-| Visual: Snapshot showing vehicle bounding box, cropped plate, & OCR text      |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Beyond infrastructure maintenance, the platform enhances city safety by capturing reckless vehicles and hit-and-run offenders with high-confidence license plate extraction."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 7: DYNAMIC ROUTE DETOUR & TRANSIT FLOW             |
-+-------------------------------------------------------------------------------+
-| Dynamic Fleet Rerouting:                                                      |
-| • Automated Hazard Bypass: When Bus-101 detects severe craters on EM Bypass,  |
-|   the system computes a green detour via Park Circus / Topsia.                |
-| • Congestion Bypass: When Bus-104 detects traffic crawling (<10 km/h) on VIP   |
-|   Road, it routes through Broadway bypass.                                    |
-| • Impact: Reduces bus mechanical wear, prevents breakdown delays, and         |
-|   safeguards transit passenger comfort.                                       |
-| Visual: GIS map showing original red hazard path vs. green detour polyline    |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "UrbanSense is closed-loop: it doesn't just log potholes; it immediately informs transit dispatch to reroute subsequent buses away from damaged roads, preventing vehicle breakdowns."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 8: DUAL-MODE SENSING & MOBILE INTEGRATION          |
-+-------------------------------------------------------------------------------+
-| Hardware Versatility:                                                         |
-| • Dedicated Fleet Node: Raspberry Pi / Jetson / Dashcam USB units on buses.   |
-| • Instant Smartphone Node: Any Android/iOS device becomes an edge camera via  |
-|   secure HTTPS (`https://<LAN_IP>:8443/camera`).                              |
-| • Zero App Installation: Works directly in mobile browsers using WebSockets.  |
-| • Live Mobile GPS Sync: Streams phone GPS coordinates directly onto map.      |
-| Visual: QR code pairing and smartphone mounted on car dashboard               |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "Our solution is universally accessible. Any mobile device or transit camera connects in seconds via a web browser without installing specialized native apps."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 9: TECH STACK & SOVEREIGN ARCHITECTURE             |
-+-------------------------------------------------------------------------------+
-| Full Technical Stack:                                                         |
-| • AI/CV: YOLOv5n ONNX, OpenCV 5.0 DNN, NumPy, Scikit-Learn.                   |
-| • Backend: Python 3.12, FastAPI, Uvicorn, WebSockets (WSS/WS).                |
-| • Frontend & GIS: Leaflet.js, CartoDB Dark Matter, Vanilla HTML5/CSS3/ES6.    |
-| • 100% Air-Gapped & Sovereign: Zero paid external APIs (No Google Maps or    |
-|   Roboflow subscription costs). Runs fully offline in defence/municipal labs. |
-| Visual: Tech stack badges and clean system topology graphic                   |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "In accordance with BEL's defence and smart city standards, UrbanSense is 100% sovereign and air-gapped capable, with zero recurring costs for proprietary cloud APIs."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 10: BUSINESS VIABILITY & IMPACT METRICS            |
-+-------------------------------------------------------------------------------+
-| Quantifiable Benefits:                                                        |
-| • >98% Bandwidth Savings: Replaces gigabytes of video streaming with JSON.   |
-| • 90% Cost Reduction: Eliminates expensive dedicated road audit vehicles.     |
-| • 10x Faster Repairs: Automated PWD CRM work orders cut audit-to-repair delay  |
-|   from months to 48 hours.                                                    |
-| • Fleet Longevity: Reduces bus chassis & suspension damage by 30%.            |
-| Visual: Metrics summary cards (98% Bandwidth, 90% Cost, 48h Repair Cycle)     |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "By utilizing existing bus fleets and edge inference, we achieve a 90% reduction in road inspection costs while enabling a 48-hour municipal repair dispatch cycle."
-
-```
-+-------------------------------------------------------------------------------+
-|                      SLIDE 11: FUTURE SCOPE & CONCLUSION                      |
-+-------------------------------------------------------------------------------+
-| Scalability Roadmap:                                                          |
-| 1. C-V2X direct vehicle-to-vehicle in-cabin hazard warning broadcasts.        |
-| 2. Hardware NPU acceleration (Google Coral / Hailo-8 / Jetson Orin Nano).     |
-| 3. 3D LiDAR & Stereo Camera volumetric damage estimation (asphalt tons).      |
-| 4. National MoRTH & Smart Cities Mission ICCC integration.                    |
-| Conclusion: BEL UrbanSense makes urban roads safer, smarter, and self-healing.|
-| Visual: Road ahead illustration with C-V2X connected vehicle mesh network     |
-+-------------------------------------------------------------------------------+
-```
-* **Speaker Notes**: "BEL UrbanSense provides a scalable, sovereign blueprint for smart city mobility. We are ready to take your questions and demonstrate the live platform. Thank you!"
-
----
-
-## 7. Quick Reference: Launch Commands & File Index
-
-| File / Command | Purpose |
-| :--- | :--- |
-| **`RUN_URBANSENSE.bat`** | Main 1-click launcher for the entire platform (starts server & opens browser). |
-| **`SETUP_NEW_LAPTOP.bat`** | Complete environment setup, dependency installation & SSL certificate generation. |
-| **`START_VIDEO_DEMO.bat`** | Runs video streamer simulating onboard bus dashcam. |
-| **`START_BUS104_TRAFFIC_DEMO.bat`**| Runs traffic congestion and bottleneck analysis demo stream. |
-| **`SHARE_ONLINE_TUNNEL.bat`** | Launches public HTTPS tunnel for remote live demonstrations. |
-| **`SHOW_MY_IP.bat`** | Displays local Wi-Fi IP address for quick smartphone pairing. |
-| **`http://localhost:8000/`** | Laptop Command & Operations Dashboard. |
-| **`https://<LAN_IP>:8443/camera`** | Mobile Phone Edge Camera & GPS streaming portal. |
