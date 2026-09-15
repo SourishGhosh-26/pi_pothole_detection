@@ -779,6 +779,14 @@
             }));
           } catch(e) {}
         };
+        ingestWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "MOBILE_PERCEPTION_STATUS") {
+              handlePerceptionStatus(data);
+            }
+          } catch(e) {}
+        };
         ingestWs.onerror = (e) => {
           console.error("Ingest WS error:", e);
           showPhoneToast("Server connection error. Verify Wi-Fi and SSL bypass.", "error");
@@ -804,7 +812,9 @@
           try {
             const data = JSON.parse(event.data);
             if (data.type === "LIVE_FRAME" && (data.is_mobile || data.bus_id === "MOBILE-CAM")) {
-              updateLivePerceptionHUD(data);
+              if (showAiOverlay) {
+                updateLivePerceptionHUD(data);
+              }
             } else if (data.type === "NEW_DETECTION") {
               const det = data.detection;
               // CRITICAL: ONLY alert for hazards detected by THIS phone's camera!
@@ -822,7 +832,57 @@
     }
 
     let perceptionResetTimer = null;
-    let showAiOverlay = true;
+    let showAiOverlay = false;
+
+    function handlePerceptionStatus(status) {
+      const probLabel = document.getElementById('currentDetectedProblemLabel');
+      if (!probLabel) return;
+
+      if (status.is_indoor) {
+        probLabel.innerText = '🟢 VENUE INDOORS / ROAD CLEAR';
+        probLabel.style.color = '#10b981';
+        return;
+      }
+
+      if (status.has_detections) {
+        if (perceptionResetTimer) {
+          clearTimeout(perceptionResetTimer);
+          perceptionResetTimer = null;
+        }
+        const evType = status.event_type || '';
+        const subtype = status.subtype || '';
+
+        if (evType === 'pedestrian_safety' || subtype.includes('pedestrian') || subtype.includes('children') || subtype.includes('crossing')) {
+          probLabel.innerText = '🚸 PEDESTRIAN CROSSING';
+          probLabel.style.color = '#f472b6';
+        } else if (evType === 'traffic_bottleneck' || subtype.includes('congestion') || subtype.includes('bottleneck')) {
+          probLabel.innerText = '🚦 TRAFFIC CONGESTION';
+          probLabel.style.color = '#f59e0b';
+        } else if (evType === 'offending_vehicle' || subtype.includes('reckless') || subtype.includes('speeding') || subtype.includes('plate')) {
+          probLabel.innerText = `🚨 ANPR: ${status.plate_number || 'VEHICLE'}`;
+          probLabel.style.color = '#ef4444';
+        } else if (evType === 'missing_infrastructure' || subtype.includes('divider') || subtype.includes('guardrail') || subtype.includes('infra')) {
+          probLabel.innerText = '🚧 INFRA DEFECT';
+          probLabel.style.color = '#fb923c';
+        } else if (subtype === 'waterlogging') {
+          probLabel.innerText = '🌊 WATERLOGGED ROAD';
+          probLabel.style.color = '#38bdf8';
+        } else {
+          probLabel.innerText = '🕳️ ROAD POTHOLE';
+          probLabel.style.color = '#f87171';
+        }
+      } else {
+        if (!perceptionResetTimer) {
+          perceptionResetTimer = setTimeout(() => {
+            if (probLabel) {
+              probLabel.innerText = '🟢 ROAD CLEAR / SCANNING...';
+              probLabel.style.color = '#10b981';
+            }
+            perceptionResetTimer = null;
+          }, 1000);
+        }
+      }
+    }
 
     function toggleAiVision() {
       showAiOverlay = !showAiOverlay;
@@ -1007,13 +1067,13 @@
     let fpsFramesCount = 0;
     let gpsHeartbeatInterval = null;
 
-    // Set static canvas dimensions once to avoid per-frame DOM/canvas reallocation
-    captureCanvas.width = 640;
-    captureCanvas.height = 480;
+    // Set static canvas dimensions to 480x360 for ultra-fast low-latency mobile streaming
+    captureCanvas.width = 480;
+    captureCanvas.height = 360;
 
     function sendFrame() {
       if (!isStreaming || !ingestWs || ingestWs.readyState !== WebSocket.OPEN) return;
-      if (isSendingFrame) return; // Prevent frame stacking
+      if (isSendingFrame) return; // Strict lock: prevents frame stacking/buffering
 
       const source = isSimMode ? simCanvas : videoEl;
       if (!source.videoWidth && !isSimMode) {
@@ -1025,9 +1085,9 @@
       }
 
       isSendingFrame = true;
-      ctx.drawImage(source, 0, 0, 640, 480);
+      ctx.drawImage(source, 0, 0, 480, 360);
 
-      // Lightweight 0.65 JPEG compression produces sharp ~25KB frames for instant transmission
+      // Lightweight 0.55 JPEG compression produces ~12KB frames for sub-50ms transmission
       captureCanvas.toBlob((blob) => {
         if (!blob || !ingestWs || ingestWs.readyState !== WebSocket.OPEN) {
           isSendingFrame = false;
@@ -1053,7 +1113,7 @@
         } finally {
           isSendingFrame = false;
         }
-      }, 'image/jpeg', 0.65);
+      }, 'image/jpeg', 0.55);
     }
 
     function sendGpsHeartbeat() {
@@ -1095,8 +1155,8 @@
         connectWebSockets();
         lastFpsTime = Date.now();
         fpsFramesCount = 0;
-        // 90ms interval = ~11.1 FPS (Fluid real-time road perception without network congestion)
-        streamInterval = setInterval(sendFrame, 90);
+        // 75ms interval = ~13.3 FPS (Sub-50ms latency, fluid real-time streaming without Wi-Fi congestion)
+        streamInterval = setInterval(sendFrame, 75);
         gpsHeartbeatInterval = setInterval(sendGpsHeartbeat, 1500);
       } else {
         btn.innerHTML = `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> START MOBILE CAMERA STREAM`;

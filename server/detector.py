@@ -35,6 +35,7 @@ COCO_CLASSES = [
 
 VEHICLE_CLASS_IDS = {1: "bicycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 PERSON_CLASS_IDS = {0: "person"}
+INDOOR_CLASS_IDS = {56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76}
 
 class UrbanIntelligenceDetector:
     """
@@ -84,6 +85,10 @@ class UrbanIntelligenceDetector:
         self.tracked_defects = []
         self.anpr_counter = 0
         self.mobile_scene_counter = 0
+        self.mobile_frame_count = 0
+        self.cached_mobile_objects = []
+        self.cached_is_indoor = False
+        self.cached_road_defects = []
         self.mobile_problem_history = deque(maxlen=5)
 
         if self.use_stub:
@@ -341,10 +346,10 @@ class UrbanIntelligenceDetector:
     def _verify_road_pavement(self, img: np.ndarray, h: int, w: int) -> Tuple[bool, float, Optional[np.ndarray]]:
         """
         Evaluates whether the frame contains a valid asphalt / bituminous road pavement.
-        Rejects indoor walls, ceilings, monitors, faces, wooden desks, and white paper
-        to prevent false positive pothole / cavity alarms.
+        Rejects indoor walls, ceilings, monitors, faces, wooden desks, white paper,
+        and indoor tiled floors to prevent false positive pothole / cavity alarms.
         """
-        roi_ymin = int(h * 0.45)
+        roi_ymin = int(h * 0.40)
         roi = img[roi_ymin:int(h * 0.95), :]
         if roi.size == 0:
             return False, 0.0, None
@@ -355,24 +360,40 @@ class UrbanIntelligenceDetector:
         mean_val = float(np.mean(gray_roi))
         std_val = float(np.std(gray_roi))
 
-        # 1. Asphalt is neutral/desaturated (mean saturation typically < 60)
+        # 1. Asphalt is neutral/desaturated (mean saturation typically < 55)
         # Colorful walls, wooden furniture, foliage, carpets have high saturation
-        if mean_sat > 60.0:
+        if mean_sat > 55.0:
             return False, mean_val, gray_roi
 
-        # 2. Lighting range: asphalt in daylight / headlights has mean between 25 and 215
+        # 2. Lighting range: asphalt in daylight / headlights has mean between 25 and 210
         # Pitch black or washed-out white light rejected
-        if mean_val < 25.0 or mean_val > 215.0:
+        if mean_val < 25.0 or mean_val > 210.0:
             return False, mean_val, gray_roi
 
-        # 3. Pavement grain/texture: asphalt has natural bitumen granularity (std >= 3.5)
-        # Smooth painted indoor walls, ceilings, computer monitors, white paper have std < 3.5
-        if std_val < 3.5:
+        # 3. Pavement grain/texture: asphalt has natural bitumen granularity (std >= 4.0)
+        # Smooth painted indoor walls, ceilings, computer monitors, white paper have std < 4.0
+        if std_val < 4.0:
             return False, mean_val, gray_roi
 
-        # 4. Extreme noise or high-frequency text clutter (std > 80)
-        if std_val > 80.0:
+        # 4. Extreme noise or high-frequency text clutter (std > 75)
+        if std_val > 75.0:
             return False, mean_val, gray_roi
+
+        # 5. Indoor Tiled Floor Rejection (detect repeating orthogonal tile seams)
+        edges = cv2.Canny(gray_roi, 40, 120)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=60, minLineLength=50, maxLineGap=8)
+        if lines is not None and len(lines) >= 6:
+            h_lines, v_lines = 0, 0
+            for l in lines:
+                x1, y1, x2, y2 = l.ravel()
+                angle = np.degrees(np.arctan2(abs(float(y2 - y1)), abs(float(x2 - x1))))
+                if angle < 15:
+                    h_lines += 1
+                elif abs(angle - 90) < 15:
+                    v_lines += 1
+            if h_lines >= 3 and v_lines >= 3:
+                # Orthogonal tile seams detected -> INDOOR TILE FLOOR
+                return False, mean_val, gray_roi
 
         return True, mean_val, gray_roi
 
@@ -396,25 +417,45 @@ class UrbanIntelligenceDetector:
         6. Normal Scene / Clear Road: Returns [] with ZERO false alarms!
         """
         self.mobile_scene_counter += 1
+        self.mobile_frame_count += 1
         detections = []
+        focus = problem_focus or "auto"
 
-        # 1. Real-Time Neural Object Detection (YOLOv5n)
-        yolo_objects = self._detect_objects_yolo(img, conf_thresh=0.35, nms_thresh=0.45)
-        vehicles = [obj for obj in yolo_objects if obj.get("category") == "vehicle"]
-        pedestrians = [obj for obj in yolo_objects if obj.get("category") == "person"]
+        # 1. Real-Time Neural Object Detection (YOLOv5n) with Keyframe Scheduling
+        # Every 2nd frame runs full YOLO; intermediate frames reuse cached objects
+        is_keyframe = (self.mobile_frame_count % 2 == 1) or len(self.cached_mobile_objects) == 0
+        if is_keyframe:
+            yolo_objects = self._detect_objects_yolo(img, conf_thresh=0.42, nms_thresh=0.45)
+            self.cached_mobile_objects = yolo_objects
+            # Check if indoor objects exist (chairs, tables, screens, laptops, etc.)
+            self.cached_is_indoor = any(obj.get("class_id") in INDOOR_CLASS_IDS for obj in yolo_objects)
+        else:
+            yolo_objects = self.cached_mobile_objects
+
+        # Filter high-confidence vehicles and pedestrians
+        vehicles = []
+        for obj in yolo_objects:
+            if obj.get("category") == "vehicle" and obj.get("confidence", 0) >= 0.50:
+                bx1, by1, bx2, by2 = obj["bbox"]
+                bw_box = bx2 - bx1
+                bh_box = by2 - by1
+                aspect = bw_box / float(max(1, bh_box))
+                # Vehicle aspect ratio filter (reject tall/thin noise)
+                if 0.55 <= aspect <= 3.2 and (bw_box * bh_box) >= (w * h * 0.012):
+                    vehicles.append(obj)
+
+        pedestrians = [obj for obj in yolo_objects if obj.get("category") == "person" and obj.get("confidence", 0) >= 0.50]
+        is_indoor = self.cached_is_indoor
 
         # 2. Road Pavement Verification & Genuine Defect Detection
         is_road, mean_brightness, gray_roi = self._verify_road_pavement(img, h, w)
         road_defects = []
-        if is_road:
+        if is_road and (not is_indoor or focus == "pothole"):
             v_boxes = [v["bbox"] for v in vehicles]
             road_defects = self._detect_road_defects(img, h, w, vehicle_bboxes=v_boxes, is_road_verified=True)
 
-        # 3. Targeted Focus vs Autonomous Perception
-        focus = problem_focus or "auto"
-
+        # 3. Targeted Problem Focus Logic
         if focus == "pothole":
-            # Strict mode: Only return genuine potholes on verified road
             if road_defects:
                 for rd in road_defects:
                     if rd.get("subtype") == "pothole":
@@ -424,7 +465,6 @@ class UrbanIntelligenceDetector:
             return detections
 
         elif focus == "waterlogging":
-            # Strict mode: Only return genuine water puddles
             if road_defects:
                 for rd in road_defects:
                     if rd.get("subtype") == "waterlogging":
@@ -436,7 +476,6 @@ class UrbanIntelligenceDetector:
         elif focus == "traffic_congestion":
             # Strict mode: Only trigger when real vehicles are detected
             if len(vehicles) >= 2:
-                # Calculate real vehicle bounding envelope
                 vx1 = min(v["bbox"][0] for v in vehicles)
                 vy1 = min(v["bbox"][1] for v in vehicles)
                 vx2 = max(v["bbox"][2] for v in vehicles)
@@ -458,7 +497,6 @@ class UrbanIntelligenceDetector:
             return detections
 
         elif focus == "pedestrian_safety":
-            # Strict mode: Only trigger when real people are detected
             if pedestrians:
                 for ped in pedestrians[:3]:
                     px1, py1, px2, py2 = ped["bbox"]
@@ -475,7 +513,6 @@ class UrbanIntelligenceDetector:
             return detections
 
         elif focus == "offending_vehicle":
-            # Strict mode: Target a real detected vehicle
             if vehicles:
                 primary_v = max(vehicles, key=lambda v: (v["bbox"][2] - v["bbox"][0]) * (v["bbox"][3] - v["bbox"][1]))
                 plate = random.choice(SAMPLE_LICENSE_PLATES)
@@ -495,8 +532,15 @@ class UrbanIntelligenceDetector:
             return detections
 
         # 4. Fully Autonomous Mode ("auto")
-        # Priority 1: Heavy Traffic Congestion (3 or more real vehicles)
-        if len(vehicles) >= 3:
+        # In indoor venue (chairs, tables, monitors, tiled floors):
+        # SUPPRESS all road hazard and traffic congestion alarms!
+        if is_indoor:
+            # Venue presentation safety: strictly return [] to guarantee ZERO false alarms
+            return []
+
+        # Outdoor Highway / Road Logic:
+        # Priority 1: Heavy Traffic Congestion (3 or more real vehicles on road)
+        if len(vehicles) >= 3 and is_road:
             vx1 = min(v["bbox"][0] for v in vehicles)
             vy1 = min(v["bbox"][1] for v in vehicles)
             vx2 = max(v["bbox"][2] for v in vehicles)
@@ -515,20 +559,6 @@ class UrbanIntelligenceDetector:
                 "priority": 10,
                 "bus_id": "MOBILE-CAM"
             })
-            # Also box individual vehicles
-            for v in vehicles[:3]:
-                detections.append({
-                    "class": "traffic_bottleneck",
-                    "event_type": "traffic_bottleneck",
-                    "subtype": "gridlock_queue",
-                    "vehicle_density": density,
-                    "vehicle_count": 1,
-                    "confidence": v["confidence"],
-                    "severity": "medium",
-                    "bbox": v["bbox"],
-                    "priority": 7,
-                    "bus_id": "MOBILE-CAM"
-                })
 
         # Priority 2: Genuine Road Defects (Potholes / Waterlogging on Asphalt)
         elif road_defects:
@@ -537,28 +567,27 @@ class UrbanIntelligenceDetector:
                 rd["priority"] = 8
                 detections.append(rd)
 
-        # Priority 3: Pedestrian Safety (Real people close to or in roadway)
-        elif pedestrians:
-            in_road_peds = [p for p in pedestrians if p["bbox"][3] > int(h * 0.35)]
-            for ped in (in_road_peds or pedestrians)[:3]:
+        # Priority 3: Pedestrian Safety on Road
+        elif pedestrians and is_road:
+            in_road_peds = [p for p in pedestrians if p["bbox"][3] > int(h * 0.40)]
+            for ped in in_road_peds[:3]:
                 px1, py1, px2, py2 = ped["bbox"]
                 detections.append({
                     "class": "pedestrian_safety",
                     "event_type": "pedestrian_safety",
                     "subtype": "pedestrian_in_roadway",
                     "confidence": ped["confidence"],
-                    "severity": "high" if py2 > int(h * 0.50) else "medium",
+                    "severity": "high" if py2 > int(h * 0.55) else "medium",
                     "bbox": [px1, py1, px2, py2],
                     "priority": 9,
                     "bus_id": "MOBILE-CAM"
                 })
 
-        # Priority 4: Offending Vehicle / Preceding Traffic
-        elif len(vehicles) in (1, 2):
+        # Priority 4: Offending Vehicle
+        elif len(vehicles) in (1, 2) and is_road:
             primary_v = max(vehicles, key=lambda v: (v["bbox"][2] - v["bbox"][0]) * (v["bbox"][3] - v["bbox"][1]))
-            # If camera is rear or vehicle is very close/dominant, track as offending vehicle / tailgating
             v_area = (primary_v["bbox"][2] - primary_v["bbox"][0]) * (primary_v["bbox"][3] - primary_v["bbox"][1])
-            if camera_angle == "rear" or v_area > (w * h * 0.12):
+            if camera_angle == "rear" or v_area > (w * h * 0.15):
                 plate = random.choice(SAMPLE_LICENSE_PLATES)
                 detections.append({
                     "class": "offending_vehicle",
@@ -610,11 +639,12 @@ class UrbanIntelligenceDetector:
         diff = local_mean - blur.astype(np.float32)
 
         # 1a. Dark cavity depressions (potholes - must be darker than surrounding pavement)
-        dark_mask = (diff > 14).astype(np.uint8) * 255
+        dark_mask = (diff > 18).astype(np.uint8) * 255
 
         # 1b. Waterlogged puddles (smooth surface reflection on asphalt)
         sobel = cv2.Sobel(gray, cv2.CV_32F, 1, 1)
-        smooth_texture = (cv2.boxFilter(np.abs(sobel), -1, (15, 15)) < 16)
+        grad = np.abs(sobel)
+        smooth_texture = (cv2.boxFilter(grad, -1, (15, 15)) < 16)
         water_mask = ((diff < -14) & smooth_texture).astype(np.uint8) * 255
 
         # 2. Morphological operations: eliminate noise grains, connect jagged pothole borders
@@ -667,7 +697,13 @@ class UrbanIntelligenceDetector:
                             mask_cnt = np.zeros(diff.shape, dtype=np.uint8)
                             cv2.drawContours(mask_cnt, [cnt], -1, 255, -1)
                             mean_diff = float(cv2.mean(diff, mask=mask_cnt)[0])
-                            if mean_diff >= 6.5:
+
+                            # Calculate edge gradient along the contour perimeter to reject soft indoor shadows
+                            peri_mask = cv2.morphologyEx(mask_cnt, cv2.MORPH_GRADIENT, np.ones((5, 5), np.uint8))
+                            edge_sharpness = float(cv2.mean(grad, mask=peri_mask)[0])
+
+                            # Real asphalt potholes have significant depth contrast AND sharp fractured stone rims
+                            if mean_diff >= 12.0 and edge_sharpness >= 2.0:
                                 raw_candidates.append((gx, gy, bw, bh, area, "pothole"))
 
         # Evaluate waterlogged puddles

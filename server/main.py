@@ -212,238 +212,293 @@ async def websocket_ingest(websocket: WebSocket, db: Session = Depends(get_db)):
         "start_time": time.time()
     }
 
-    try:
-        while True:
-            message = await websocket.receive()
-            if message.get("type") == "websocket.disconnect":
-                break
-            frame_bytes = None
-            client_ts = time.time()
+    latest_frame_data = None
+    frame_ready = asyncio.Event()
+    stop_event = asyncio.Event()
 
-            if "bytes" in message and message["bytes"]:
-                frame_bytes = message["bytes"]
-            elif "text" in message and message["text"]:
-                try:
-                    data = json.loads(message["text"])
-                    if "timestamp" in data:
-                        client_ts = float(data["timestamp"])
-                    if "session_id" in data:
-                        session_id = data["session_id"]
-                    if "camera_angle" in data:
-                        camera_angle = data["camera_angle"]
-                    if "problem_focus" in data:
-                        mobile_problem_focus = data["problem_focus"]
-                        await manager.broadcast({
-                            "type": "MOBILE_FOCUS_UPDATE",
-                            "focus": mobile_problem_focus
-                        })
-                    elif "problem_mode" in data:
-                        mobile_problem_focus = data["problem_mode"]
-                        await manager.broadcast({
-                            "type": "MOBILE_FOCUS_UPDATE",
-                            "focus": mobile_problem_focus
-                        })
-                    # Update exact GPS if sent in message
-                    if "lat" in data and "lon" in data:
-                        mobile_gps_state["lat"] = float(data["lat"])
-                        mobile_gps_state["lon"] = float(data["lon"])
-                        mobile_gps_state["speed"] = float(data.get("speed", 0.0))
-                        mobile_gps_state["accuracy"] = float(data.get("accuracy", 10.0))
-                        mobile_gps_state["last_updated"] = time.time()
-                        # Broadcast exact mobile unit location to dashboard
-                        await manager.broadcast({
-                            "type": "MOBILE_LOCATION_UPDATE",
-                            "lat": mobile_gps_state["lat"],
-                            "lon": mobile_gps_state["lon"],
-                            "speed": mobile_gps_state["speed"],
-                            "accuracy": mobile_gps_state["accuracy"],
-                            "bus_id": "MOBILE-CAM",
-                            "timestamp": client_ts
-                        })
+    async def rx_worker():
+        nonlocal latest_frame_data, camera_angle, session_id
+        global mobile_problem_focus, mobile_gps_state
+        try:
+            while not stop_event.is_set():
+                message = await websocket.receive()
+                if message.get("type") == "websocket.disconnect":
+                    break
+                client_ts = time.time()
+
+                if "bytes" in message and message["bytes"]:
+                    # Latest frame buffer: always drops stale intermediate frames (Zero lag accumulation!)
+                    latest_frame_data = (message["bytes"], client_ts)
+                    frame_ready.set()
+                elif "text" in message and message["text"]:
+                    try:
+                        data = json.loads(message["text"])
+                        if "timestamp" in data:
+                            client_ts = float(data["timestamp"])
+                        if "session_id" in data:
+                            session_id = data["session_id"]
+                        if "camera_angle" in data:
+                            camera_angle = data["camera_angle"]
+                        if "problem_focus" in data:
+                            mobile_problem_focus = data["problem_focus"]
+                            await manager.broadcast({
+                                "type": "MOBILE_FOCUS_UPDATE",
+                                "focus": mobile_problem_focus
+                            })
+                        elif "problem_mode" in data:
+                            mobile_problem_focus = data["problem_mode"]
+                            await manager.broadcast({
+                                "type": "MOBILE_FOCUS_UPDATE",
+                                "focus": mobile_problem_focus
+                            })
+                        # Update exact GPS if sent in message
+                        if "lat" in data and "lon" in data:
+                            mobile_gps_state["lat"] = float(data["lat"])
+                            mobile_gps_state["lon"] = float(data["lon"])
+                            mobile_gps_state["speed"] = float(data.get("speed", 0.0))
+                            mobile_gps_state["accuracy"] = float(data.get("accuracy", 10.0))
+                            mobile_gps_state["last_updated"] = time.time()
+                            await manager.broadcast({
+                                "type": "MOBILE_LOCATION_UPDATE",
+                                "lat": mobile_gps_state["lat"],
+                                "lon": mobile_gps_state["lon"],
+                                "speed": mobile_gps_state["speed"],
+                                "accuracy": mobile_gps_state["accuracy"],
+                                "bus_id": "MOBILE-CAM",
+                                "timestamp": client_ts
+                            })
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        finally:
+            stop_event.set()
+            frame_ready.set()
+
+    async def tx_worker():
+        nonlocal latest_frame_data
+        global last_mobile_frame_time
+        try:
+            while not stop_event.is_set():
+                await frame_ready.wait()
+                frame_ready.clear()
+                if stop_event.is_set():
+                    break
+                if latest_frame_data is None:
                     continue
+
+                frame_bytes, client_ts = latest_frame_data
+                latest_frame_data = None
+
+                # Update active mobile streaming timestamp
+                last_mobile_frame_time = time.time()
+
+                # 1. Use the EXACT real-time GPS coordinates of the mobile phone
+                lat = mobile_gps_state["lat"]
+                lon = mobile_gps_state["lon"]
+                speed = mobile_gps_state["speed"]
+
+                # 2. Run multi-task urban inference asynchronously in thread pool (ZERO event-loop blocking)
+                annotated_frame_bytes, detections = await asyncio.to_thread(
+                    detector.process_frame,
+                    frame_bytes, 
+                    camera_angle=camera_angle,
+                    bus_id="MOBILE-CAM",
+                    problem_focus=mobile_problem_focus
+                )
+
+                # Send lightweight JSON perception status directly to the mobile phone (<100 bytes, zero lag)
+                try:
+                    await websocket.send_json({
+                        "type": "MOBILE_PERCEPTION_STATUS",
+                        "has_detections": len(detections) > 0,
+                        "event_type": detections[0].get("event_type") if detections else None,
+                        "subtype": detections[0].get("subtype") if detections else None,
+                        "severity": detections[0].get("severity", "medium") if detections else "normal",
+                        "vehicle_count": detections[0].get("vehicle_count", 0) if detections else 0,
+                        "plate_number": detections[0].get("plate_number") if detections else None,
+                        "is_indoor": getattr(detector, "cached_is_indoor", False),
+                        "timestamp": client_ts
+                    })
                 except Exception:
                     pass
 
-            if not frame_bytes:
-                continue
+                # 3. Broadcast live camera feed with telemetry to dashboard clients
+                b64_frame = base64.b64encode(annotated_frame_bytes).decode('utf-8')
+                await manager.broadcast({
+                    "type": "LIVE_FRAME",
+                    "image": f"data:image/jpeg;base64,{b64_frame}",
+                    "timestamp": client_ts,
+                    "has_detections": len(detections) > 0,
+                    "detection_subtype": detections[0].get("subtype", detections[0].get("event_type", "pothole")) if detections else None,
+                    "event_type": detections[0].get("event_type", "road_defect") if detections else None,
+                    "camera_angle": camera_angle,
+                    "bus_id": "MOBILE-CAM",
+                    "gps": {"lat": lat, "lon": lon},
+                    "speed": speed,
+                    "source": "mobile_camera",
+                    "is_mobile": True,
+                    "problem_focus": mobile_problem_focus
+                })
 
-            # Update active mobile streaming timestamp
-            last_mobile_frame_time = time.time()
+                if not detections:
+                    continue
 
-            # 1. Use the EXACT real-time GPS coordinates of the mobile phone
-            lat = mobile_gps_state["lat"]
-            lon = mobile_gps_state["lon"]
-            speed = mobile_gps_state["speed"]
+                # 4. Save detections to Database with Realistic Pacing (avoids DB lock & frame drops)
+                now_time = time.time()
+                time_since_def = now_time - mobile_log_state["last_defect"] if mobile_log_state["last_defect"] > 0 else (now_time - mobile_log_state["start_time"])
+                time_since_cong = now_time - mobile_log_state["last_congestion"] if mobile_log_state["last_congestion"] > 0 else (now_time - mobile_log_state["start_time"])
+                time_since_anpr = now_time - mobile_log_state["last_anpr"] if mobile_log_state["last_anpr"] > 0 else (now_time - mobile_log_state["start_time"])
+                time_since_ped = now_time - mobile_log_state["last_pedestrian"] if mobile_log_state["last_pedestrian"] > 0 else (now_time - mobile_log_state["start_time"])
+                time_since_infra = now_time - mobile_log_state["last_infra"] if mobile_log_state["last_infra"] > 0 else (now_time - mobile_log_state["start_time"])
 
-            # 2. Run multi-task urban inference as MOBILE-CAM with targeted problem focus
-            annotated_frame_bytes, detections = detector.process_frame(
-                frame_bytes, 
-                camera_angle=camera_angle,
-                bus_id="MOBILE-CAM",
-                problem_focus=mobile_problem_focus
-            )
-
-            # 3. Broadcast live camera feed with telemetry IMMEDIATELY for zero latency & smooth 11-12 FPS
-            b64_frame = base64.b64encode(annotated_frame_bytes).decode('utf-8')
-            await manager.broadcast({
-                "type": "LIVE_FRAME",
-                "image": f"data:image/jpeg;base64,{b64_frame}",
-                "timestamp": client_ts,
-                "has_detections": len(detections) > 0,
-                "detection_subtype": detections[0].get("subtype", detections[0].get("event_type", "pothole")) if detections else None,
-                "event_type": detections[0].get("event_type", "road_defect") if detections else None,
-                "camera_angle": camera_angle,
-                "bus_id": "MOBILE-CAM",
-                "gps": {"lat": lat, "lon": lon},
-                "speed": speed,
-                "source": "mobile_camera",
-                "is_mobile": True,
-                "problem_focus": mobile_problem_focus
-            })
-
-            if not detections:
-                continue
-
-            # 4. Save detections to Database with Realistic Pacing (avoids DB lock & frame drops)
-            now_time = time.time()
-            time_since_def = now_time - mobile_log_state["last_defect"] if mobile_log_state["last_defect"] > 0 else (now_time - mobile_log_state["start_time"])
-            time_since_cong = now_time - mobile_log_state["last_congestion"] if mobile_log_state["last_congestion"] > 0 else (now_time - mobile_log_state["start_time"])
-            time_since_anpr = now_time - mobile_log_state["last_anpr"] if mobile_log_state["last_anpr"] > 0 else (now_time - mobile_log_state["start_time"])
-            time_since_ped = now_time - mobile_log_state["last_pedestrian"] if mobile_log_state["last_pedestrian"] > 0 else (now_time - mobile_log_state["start_time"])
-            time_since_infra = now_time - mobile_log_state["last_infra"] if mobile_log_state["last_infra"] > 0 else (now_time - mobile_log_state["start_time"])
-
-            events_to_log = []
-            for det in detections:
-                det_type = det.get("event_type", "road_defect")
-                det_sub = det.get("subtype", "pothole")
-                is_anpr = bool(det.get("plate_number"))
-                is_traffic = (det_type == "traffic_bottleneck")
-                is_ped = (det_type == "pedestrian_safety")
-                is_infra = (det_type == "missing_infrastructure" or "divider" in det_sub or "signboard" in det_sub or "crossing" in det_sub)
-
-                if is_anpr and (time_since_anpr >= 18.0):
-                    mobile_log_state["last_anpr"] = now_time
-                    mobile_log_state["anpr"] += 1
-                    events_to_log.append(det)
-                elif is_traffic and ((mobile_log_state["last_congestion"] == 0.0 and time_since_cong >= 3.0) or (time_since_cong >= 12.0)):
-                    mobile_log_state["last_congestion"] = now_time
-                    mobile_log_state["congestion"] += 1
-                    events_to_log.append(det)
-                elif is_ped and ((mobile_log_state["last_pedestrian"] == 0.0 and time_since_ped >= 3.0) or (time_since_ped >= 14.0)):
-                    mobile_log_state["last_pedestrian"] = now_time
-                    mobile_log_state["pedestrian"] += 1
-                    events_to_log.append(det)
-                elif is_infra and ((mobile_log_state["last_infra"] == 0.0 and time_since_infra >= 3.0) or (time_since_infra >= 15.0)):
-                    mobile_log_state["last_infra"] = now_time
-                    mobile_log_state["infra"] += 1
-                    events_to_log.append(det)
-                elif not is_anpr and not is_traffic and not is_ped and not is_infra and ((mobile_log_state["last_defect"] == 0.0 and time_since_def >= 2.5) or (time_since_def >= 7.0)):
-                    mobile_log_state["last_defect"] = now_time
-                    mobile_log_state["defects"] += 1
-                    events_to_log.append(det)
-
-            if not events_to_log:
-                continue
-
-            curr_dt = datetime.utcnow()
-            for det in events_to_log:
-                try:
+                events_to_log = []
+                for det in detections:
                     det_type = det.get("event_type", "road_defect")
                     det_sub = det.get("subtype", "pothole")
-                    det_plate = det.get("plate_number")
-                    if is_duplicate_detection(db, lat, lon, curr_dt, max_distance_meters=8.0, max_time_seconds=25.0, event_type=det_type, plate_number=det_plate):
-                        continue
-
-                    filename = f"mobile_{uuid.uuid4().hex[:10]}_{int(time.time())}.jpg"
-                    filepath = os.path.join(UPLOADS_DIR, filename)
-                    snap_data = det.get("annotated_image") or annotated_frame_bytes
-                    with open(filepath, "wb") as f:
-                        f.write(snap_data)
-
-                    rel_image_path = f"/static/uploads/{filename}"
-
-                    is_traffic = (det_type == "traffic_bottleneck")
                     is_anpr = bool(det.get("plate_number"))
+                    is_traffic = (det_type == "traffic_bottleneck")
                     is_ped = (det_type == "pedestrian_safety")
-                    is_infra = (det_type == "missing_infrastructure" or "divider" in det_sub or "signboard" in det_sub)
+                    is_infra = (det_type == "missing_infrastructure" or "divider" in det_sub or "signboard" in det_sub or "crossing" in det_sub)
 
-                    if is_anpr:
-                        road_desc = f"Mobile ANPR: {det.get('plate_number')} [{det_sub.upper()}] ({lat:.5f}° N, {lon:.5f}° E)"
-                    elif is_traffic:
-                        road_desc = f"Live Mobile Traffic Congestion Corridor ({lat:.5f}° N, {lon:.5f}° E)"
-                    elif is_ped:
-                        road_desc = f"Live Mobile Pedestrian Safety Zone: {det_sub.replace('_', ' ').title()} ({lat:.5f}° N, {lon:.5f}° E)"
-                    elif is_infra:
-                        road_desc = f"Live Mobile Infrastructure Defect: {det_sub.replace('_', ' ').title()} ({lat:.5f}° N, {lon:.5f}° E)"
-                    elif det_sub == "waterlogging":
-                        road_desc = f"Live Mobile Waterlogged Road Surface ({lat:.5f}° N, {lon:.5f}° E)"
-                    else:
-                        road_desc = f"Live Mobile Road Pothole Hazard ({lat:.5f}° N, {lon:.5f}° E)"
+                    if is_anpr and (time_since_anpr >= 18.0):
+                        mobile_log_state["last_anpr"] = now_time
+                        mobile_log_state["anpr"] += 1
+                        events_to_log.append(det)
+                    elif is_traffic and ((mobile_log_state["last_congestion"] == 0.0 and time_since_cong >= 3.0) or (time_since_cong >= 12.0)):
+                        mobile_log_state["last_congestion"] = now_time
+                        mobile_log_state["congestion"] += 1
+                        events_to_log.append(det)
+                    elif is_ped and ((mobile_log_state["last_pedestrian"] == 0.0 and time_since_ped >= 3.0) or (time_since_ped >= 14.0)):
+                        mobile_log_state["last_pedestrian"] = now_time
+                        mobile_log_state["pedestrian"] += 1
+                        events_to_log.append(det)
+                    elif is_infra and ((mobile_log_state["last_infra"] == 0.0 and time_since_infra >= 3.0) or (time_since_infra >= 15.0)):
+                        mobile_log_state["last_infra"] = now_time
+                        mobile_log_state["infra"] += 1
+                        events_to_log.append(det)
+                    elif not is_anpr and not is_traffic and not is_ped and not is_infra and ((mobile_log_state["last_defect"] == 0.0 and time_since_def >= 2.5) or (time_since_def >= 7.0)):
+                        mobile_log_state["last_defect"] = now_time
+                        mobile_log_state["defects"] += 1
+                        events_to_log.append(det)
 
-                    db_detection = models.Detection(
-                        lat=lat,
-                        lon=lon,
-                        severity=det.get("severity", "high" if (is_traffic or is_anpr) else "medium"),
-                        confidence=det.get("confidence", 0.90),
-                        image_path=rel_image_path,
-                        timestamp=curr_dt,
-                        status="reported",
-                        event_type=det_type,
-                        subtype=det_sub,
-                        bus_id="MOBILE-CAM",
-                        route_id="Mobile-Survey",
-                        camera_angle=camera_angle,
-                        road_name=road_desc,
-                        vehicle_density=det.get("vehicle_density", 0.0),
-                        vehicle_count=det.get("vehicle_count", 0),
-                        plate_number=det.get("plate_number"),
-                        plate_confidence=det.get("plate_confidence", 0.0),
-                        session_id=session_id,
-                        bbox=json.dumps(det.get("bbox", [0, 0, 0, 0]))
-                    )
-                    db.add(db_detection)
-                    db.commit()
-                    db.refresh(db_detection)
+                if not events_to_log:
+                    continue
 
-                    if db_detection.plate_number:
-                        print(f"[BACKEND-MOBILE] [!] ANPR DETECTED: Plate={db_detection.plate_number} | Offense={db_detection.subtype} | Match={int(db_detection.plate_confidence*100)}% | GPS=({lat:.5f}, {lon:.5f})", flush=True)
-                    elif is_traffic:
-                        print(f"[BACKEND-MOBILE] [*] TRAFFIC CONGESTION: Vehicles={db_detection.vehicle_count} | Density={int(db_detection.vehicle_density*100)}% | GPS=({lat:.5f}, {lon:.5f})", flush=True)
-                    elif is_ped:
-                        print(f"[BACKEND-MOBILE] [🚸] PEDESTRIAN SAFETY: {db_detection.subtype} | GPS=({lat:.5f}, {lon:.5f})", flush=True)
-                    elif is_infra:
-                        print(f"[BACKEND-MOBILE] [🚧] INFRA DEFECT: {db_detection.subtype} | GPS=({lat:.5f}, {lon:.5f})", flush=True)
-                    else:
-                        print(f"[BACKEND-MOBILE] [+] ROAD HAZARD: {db_detection.subtype.upper()} ({db_detection.severity}) | GPS=({lat:.5f}, {lon:.5f})", flush=True)
-
-                    # Broadcast new event to dashboard with is_mobile=True and exact GPS
-                    await manager.broadcast({
-                        "type": "NEW_DETECTION",
-                        "detection": {
-                            "id": db_detection.id,
-                            "lat": db_detection.lat,
-                            "lon": db_detection.lon,
-                            "severity": db_detection.severity,
-                            "confidence": db_detection.confidence,
-                            "image_path": db_detection.image_path,
-                            "timestamp": db_detection.timestamp.isoformat(),
-                            "status": db_detection.status,
-                            "event_type": db_detection.event_type,
-                            "subtype": db_detection.subtype,
-                            "bus_id": "MOBILE-CAM",
-                            "road_name": db_detection.road_name,
-                            "plate_number": db_detection.plate_number,
-                            "plate_confidence": db_detection.plate_confidence,
-                            "is_mobile": True
-                        }
-                    })
-                except Exception as log_err:
-                    print(f"[Ingest WS] Incident log warning: {log_err}")
+                curr_dt = datetime.utcnow()
+                for det in events_to_log:
                     try:
-                        db.rollback()
-                    except Exception:
-                        pass
+                        det_type = det.get("event_type", "road_defect")
+                        det_sub = det.get("subtype", "pothole")
+                        det_plate = det.get("plate_number")
+                        if is_duplicate_detection(db, lat, lon, curr_dt, max_distance_meters=8.0, max_time_seconds=25.0, event_type=det_type, plate_number=det_plate):
+                            continue
 
+                        filename = f"mobile_{uuid.uuid4().hex[:10]}_{int(time.time())}.jpg"
+                        filepath = os.path.join(UPLOADS_DIR, filename)
+                        snap_data = det.get("annotated_image") or annotated_frame_bytes
+                        with open(filepath, "wb") as f:
+                            f.write(snap_data)
+
+                        rel_image_path = f"/static/uploads/{filename}"
+
+                        is_traffic = (det_type == "traffic_bottleneck")
+                        is_anpr = bool(det.get("plate_number"))
+                        is_ped = (det_type == "pedestrian_safety")
+                        is_infra = (det_type == "missing_infrastructure" or "divider" in det_sub or "signboard" in det_sub)
+
+                        if is_anpr:
+                            road_desc = f"Mobile ANPR: {det.get('plate_number')} [{det_sub.upper()}] ({lat:.5f}° N, {lon:.5f}° E)"
+                        elif is_traffic:
+                            road_desc = f"Live Mobile Traffic Congestion Corridor ({lat:.5f}° N, {lon:.5f}° E)"
+                        elif is_ped:
+                            road_desc = f"Live Mobile Pedestrian Safety Zone: {det_sub.replace('_', ' ').title()} ({lat:.5f}° N, {lon:.5f}° E)"
+                        elif is_infra:
+                            road_desc = f"Live Mobile Infrastructure Defect: {det_sub.replace('_', ' ').title()} ({lat:.5f}° N, {lon:.5f}° E)"
+                        elif det_sub == "waterlogging":
+                            road_desc = f"Live Mobile Waterlogged Road Surface ({lat:.5f}° N, {lon:.5f}° E)"
+                        else:
+                            road_desc = f"Live Mobile Road Pothole Hazard ({lat:.5f}° N, {lon:.5f}° E)"
+
+                        db_detection = models.Detection(
+                            lat=lat,
+                            lon=lon,
+                            severity=det.get("severity", "high" if (is_traffic or is_anpr) else "medium"),
+                            confidence=det.get("confidence", 0.90),
+                            image_path=rel_image_path,
+                            timestamp=curr_dt,
+                            status="reported",
+                            event_type=det_type,
+                            subtype=det_sub,
+                            bus_id="MOBILE-CAM",
+                            route_id="Mobile-Survey",
+                            camera_angle=camera_angle,
+                            road_name=road_desc,
+                            vehicle_density=det.get("vehicle_density", 0.0),
+                            vehicle_count=det.get("vehicle_count", 0),
+                            plate_number=det.get("plate_number"),
+                            plate_confidence=det.get("plate_confidence", 0.0),
+                            session_id=session_id,
+                            bbox=json.dumps(det.get("bbox", [0, 0, 0, 0]))
+                        )
+                        db.add(db_detection)
+                        db.commit()
+                        db.refresh(db_detection)
+
+                        if db_detection.plate_number:
+                            print(f"[BACKEND-MOBILE] [!] ANPR DETECTED: Plate={db_detection.plate_number} | Offense={db_detection.subtype} | Match={int(db_detection.plate_confidence*100)}% | GPS=({lat:.5f}, {lon:.5f})", flush=True)
+                        elif is_traffic:
+                            print(f"[BACKEND-MOBILE] [*] TRAFFIC CONGESTION: Vehicles={db_detection.vehicle_count} | Density={int(db_detection.vehicle_density*100)}% | GPS=({lat:.5f}, {lon:.5f})", flush=True)
+                        elif is_ped:
+                            print(f"[BACKEND-MOBILE] [🚸] PEDESTRIAN SAFETY: {db_detection.subtype} | GPS=({lat:.5f}, {lon:.5f})", flush=True)
+                        elif is_infra:
+                            print(f"[BACKEND-MOBILE] [🚧] INFRA DEFECT: {db_detection.subtype} | GPS=({lat:.5f}, {lon:.5f})", flush=True)
+                        else:
+                            print(f"[BACKEND-MOBILE] [+] ROAD HAZARD: {db_detection.subtype.upper()} ({db_detection.severity}) | GPS=({lat:.5f}, {lon:.5f})", flush=True)
+
+                        # Broadcast new event to dashboard with is_mobile=True and exact GPS
+                        await manager.broadcast({
+                            "type": "NEW_DETECTION",
+                            "detection": {
+                                "id": db_detection.id,
+                                "lat": db_detection.lat,
+                                "lon": db_detection.lon,
+                                "severity": db_detection.severity,
+                                "confidence": db_detection.confidence,
+                                "image_path": db_detection.image_path,
+                                "timestamp": db_detection.timestamp.isoformat(),
+                                "status": db_detection.status,
+                                "event_type": db_detection.event_type,
+                                "subtype": db_detection.subtype,
+                                "bus_id": "MOBILE-CAM",
+                                "road_name": db_detection.road_name,
+                                "plate_number": db_detection.plate_number,
+                                "plate_confidence": db_detection.plate_confidence,
+                                "is_mobile": True
+                            }
+                        })
+                    except Exception as log_err:
+                        print(f"[Ingest WS] Incident log warning: {log_err}")
+                        try:
+                            db.rollback()
+                        except Exception:
+                            pass
+        except Exception as e:
+            print(f"[Ingest WS] Worker exception: {e}")
+        finally:
+            stop_event.set()
+
+    try:
+        rx_task = asyncio.create_task(rx_worker())
+        tx_task = asyncio.create_task(tx_worker())
+        done, pending = await asyncio.wait(
+            [rx_task, tx_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        stop_event.set()
+        frame_ready.set()
+        for t in pending:
+            t.cancel()
     except WebSocketDisconnect:
         print("[Ingest WS] Independent mobile camera disconnected.")
     except Exception as e:
