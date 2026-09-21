@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Ensure server directory is always in sys.path so sibling imports work whether run from root or server/
+server_dir = os.path.dirname(os.path.abspath(__file__))
+if server_dir not in sys.path:
+    sys.path.insert(0, server_dir)
+
 import json
 import uuid
 import time
