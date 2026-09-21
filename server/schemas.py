@@ -41,6 +41,18 @@ class DetectionResponse(DetectionBase):
     class Config:
         from_attributes = True
 
+class BusCreate(BaseModel):
+    id: str
+    route_name: str
+    current_lat: float = 22.5726
+    current_lon: float = 88.3639
+    speed_kmh: Optional[float] = 25.0
+    route_delay_min: Optional[float] = 0.0
+    passenger_load: Optional[str] = "Moderate"
+    status: Optional[str] = "on_route"
+    active_cameras: Optional[str] = "front,side"
+    waypoints: Optional[List[List[float]]] = None
+
 class BusFleetResponse(BaseModel):
     id: str
     route_name: str

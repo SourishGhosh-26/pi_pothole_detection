@@ -640,6 +640,131 @@ def get_fleet(db: Session = Depends(get_db)):
     return results
 
 
+@app.get("/api/fleet/{bus_id}", response_model=schemas.BusFleetResponse)
+def get_bus_by_id(bus_id: str, db: Session = Depends(get_db)):
+    """Checks if a specific bus exists in the database and returns its live telemetry and route status."""
+    bus = db.query(models.BusFleet).filter(models.BusFleet.id == bus_id).first()
+    if not bus:
+        raise HTTPException(status_code=404, detail=f"Bus '{bus_id}' not found in database")
+    cfg = BUS_ROUTES_CONFIG.get(bus.id, {})
+    return schemas.BusFleetResponse(
+        id=bus.id,
+        route_name=bus.route_name,
+        current_lat=bus.current_lat,
+        current_lon=bus.current_lon,
+        speed_kmh=bus.speed_kmh,
+        route_delay_min=bus.route_delay_min,
+        passenger_load=bus.passenger_load,
+        status="rerouted" if cfg.get("is_rerouted") else (bus.status or "on_route"),
+        active_cameras=bus.active_cameras or "front",
+        last_update=bus.last_update or datetime.utcnow(),
+        is_rerouted=cfg.get("is_rerouted", False),
+        hazard_reason=cfg.get("hazard_reason", ""),
+        scheduled_waypoints=cfg.get("scheduled_waypoints", []),
+        hazard_segment=cfg.get("hazard_segment", []),
+        reroute_waypoints=cfg.get("reroute_waypoints", []),
+        detour_segment=cfg.get("detour_segment", [])
+    )
+
+
+@app.post("/api/fleet", response_model=schemas.BusFleetResponse, status_code=201)
+async def register_bus(bus_data: schemas.BusCreate, db: Session = Depends(get_db)):
+    """
+    Registers a new public transit bus in the database and adds it to the live fleet tracking system.
+    Immediately broadcasts the new bus to the live dashboard via WebSockets.
+    """
+    bid = bus_data.id.strip().upper()
+    existing = db.query(models.BusFleet).filter(models.BusFleet.id == bid).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Bus ID '{bid}' is already registered in database")
+    
+    new_bus = models.BusFleet(
+        id=bid,
+        route_name=bus_data.route_name.strip(),
+        current_lat=float(bus_data.current_lat),
+        current_lon=float(bus_data.current_lon),
+        speed_kmh=float(bus_data.speed_kmh) if bus_data.speed_kmh is not None else 25.0,
+        route_delay_min=float(bus_data.route_delay_min) if bus_data.route_delay_min is not None else 0.0,
+        passenger_load=bus_data.passenger_load or "Moderate",
+        status=bus_data.status or "on_route",
+        active_cameras=bus_data.active_cameras or "front",
+        last_update=datetime.utcnow()
+    )
+    db.add(new_bus)
+    db.commit()
+    db.refresh(new_bus)
+
+    # Register in route configuration so tracking, rerouting, and simulation work
+    waypoints = bus_data.waypoints if bus_data.waypoints and len(bus_data.waypoints) > 0 else [[new_bus.current_lat, new_bus.current_lon]]
+    BUS_ROUTES_CONFIG[new_bus.id] = {
+        "route_name": new_bus.route_name,
+        "is_rerouted": False,
+        "scheduled_waypoints": waypoints,
+        "hazard_segment": [],
+        "reroute_waypoints": waypoints,
+        "detour_segment": [],
+        "hazard_reason": ""
+    }
+
+    # Broadcast to live dashboard via WebSocket
+    await manager.broadcast({
+        "type": "BUS_ADDED",
+        "bus_id": new_bus.id,
+        "route_name": new_bus.route_name,
+        "lat": new_bus.current_lat,
+        "lon": new_bus.current_lon,
+        "speed_kmh": new_bus.speed_kmh,
+        "status": new_bus.status
+    })
+
+    return schemas.BusFleetResponse(
+        id=new_bus.id,
+        route_name=new_bus.route_name,
+        current_lat=new_bus.current_lat,
+        current_lon=new_bus.current_lon,
+        speed_kmh=new_bus.speed_kmh,
+        route_delay_min=new_bus.route_delay_min,
+        passenger_load=new_bus.passenger_load,
+        status=new_bus.status,
+        active_cameras=new_bus.active_cameras,
+        last_update=new_bus.last_update,
+        is_rerouted=False,
+        hazard_reason="",
+        scheduled_waypoints=waypoints,
+        hazard_segment=[],
+        reroute_waypoints=waypoints,
+        detour_segment=[]
+    )
+
+
+@app.delete("/api/fleet/{bus_id}")
+async def delete_bus(bus_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes / decommissions a bus from the database and fleet tracking system.
+    Immediately updates the live GIS dashboard via WebSockets.
+    """
+    bid = bus_id.strip().upper()
+    bus = db.query(models.BusFleet).filter(models.BusFleet.id == bid).first()
+    if not bus:
+        raise HTTPException(status_code=404, detail=f"Bus '{bid}' not found in database")
+    
+    db.delete(bus)
+    db.commit()
+
+    if bid in BUS_ROUTES_CONFIG and bid not in ["BUS-101", "BUS-104"]:
+        del BUS_ROUTES_CONFIG[bid]
+
+    await manager.broadcast({
+        "type": "BUS_REMOVED",
+        "bus_id": bid
+    })
+
+    return {
+        "status": "success",
+        "message": f"Bus '{bid}' has been successfully removed from database and fleet system."
+    }
+
+
 b104_manual_override_expiry = 0.0
 
 @app.post("/api/fleet/{bus_id}/reroute")
