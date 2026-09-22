@@ -34,3 +34,9 @@ scratch/
 # Pi client offline queue & heavy model checkpoints
 offline_queue/
 runs/
+
+# SIH Presentation Notes & Q&A Guides (Do not add to GitHub)
+SIH_Presentation_Expected_Questions_and_Answers.pdf
+SIH_*_Questions*.pdf
+*Tech_Stack*.pdf
+BEL_UrbanSense_*.pdf

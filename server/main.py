@@ -21,7 +21,7 @@ import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 import models
@@ -52,6 +52,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def enforce_cloud_https(request: Request, call_next):
+    # Enforce HTTPS on cloud deployment (Render/cloud proxy) so smartphone camera permissions work seamlessly
+    proto = request.headers.get("x-forwarded-proto")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    if proto == "http" and ("onrender.com" in host or "render.com" in host):
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(url=f"https://{host}{request.url.path}{query}", status_code=301)
+    return await call_next(request)
 
 # Mount static files for detection snapshots
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
@@ -147,7 +157,29 @@ def get_camera_html():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "camera.html"))
 
 @app.get("/api/network_info")
-def get_network_info():
+def get_network_info(request: Request):
+    host_header = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+
+    # Automatically recognize Render or any public cloud deployment
+    is_cloud = (
+        "onrender.com" in host_header 
+        or "render.com" in host_header 
+        or (proto == "https" and not any(h in host_header for h in ["192.168.", "10.", "127.0.0.1", "localhost"]))
+    )
+
+    if is_cloud:
+        base_url = f"https://{host_header}"
+        return {
+            "is_cloud": True,
+            "lan_ip": None,
+            "cloud_camera_url": f"{base_url}/camera",
+            "https_camera_url": f"{base_url}/camera",
+            "http_camera_url": f"{base_url}/camera",
+            "dashboard_url": f"{base_url}/"
+        }
+
+    # Offline/Local LAN discovery for college Wi-Fi testing
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -158,6 +190,7 @@ def get_network_info():
     finally:
         s.close()
     return {
+        "is_cloud": False,
         "lan_ip": ip,
         "https_camera_url": f"https://{ip}:8443/camera",
         "http_camera_url": f"http://{ip}:8000/camera",

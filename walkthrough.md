@@ -222,3 +222,26 @@ Automated test script (`scratch/test_live_mobile_e2e.py`) verified:
 - [x] Ingesting a mobile camera frame broadcasts `LIVE_FRAME` with `bus_id="MOBILE-CAM"` and `is_mobile=True`.
 - [x] Detected pothole broadcasts `NEW_DETECTION` with exact mobile GPS coordinates and triggers map plotting.
 - [x] Endpoints respond with HTTP 200: `http://localhost:8000/dashboard` and `https://localhost:8443/camera`.
+
+---
+
+## 6. Render Cloud Mobile Camera Streaming & Zero-Config SSL Fix
+
+### Problem Addressed
+When hosted on Render (`https://bel-urbansense.onrender.com`), attempting to launch mobile camera streaming resulted in:
+1. Modal displaying internal container socket IPs or appending `:8443` (e.g. `https://bel-urbansense.onrender.com:8443/camera`), which failed to connect because Render only routes external traffic via standard port 443.
+2. Modal displaying local Wi-Fi self-signed SSL bypass warnings ("Proceed unsafe") on cloud.
+3. Mobile client attempting to connect WebSockets to port 8000 (`wss://...:8000/ws/ingest`), resulting in immediate connection rejection and "Verify Wi-Fi and SSL bypass" toasts.
+
+### Solutions Implemented
+1. **Dynamic Cloud Detection & Public HTTPS Link**:
+   - `server/main.py`: Updated `/api/network_info` to inspect `x-forwarded-host` and `x-forwarded-proto`. Returns `is_cloud: True` with the public HTTPS URL (`https://bel-urbansense.onrender.com/camera`).
+   - `server/static/dashboard.html`: `openMobileModal()` immediately detects cloud environments (`window.location.protocol === 'https:'` or `hostname.includes('onrender.com')`). Instantly populates `urlBox.innerText` and `btnLaunch.href` with `${window.location.origin}/camera`, unhides the green-lock `#cloudSslBanner`, and hides all offline Wi-Fi bypass instructions.
+2. **WebSocket Port Normalization for Port 443 Cloud Routing**:
+   - `server/static/camera.html`: Replaced `window.location.port || '8000'` with `const host = window.location.host;`. When running on Render HTTPS, WebSockets cleanly connect to `wss://bel-urbansense.onrender.com/ws/ingest` over port 443.
+3. **Resilient Camera Hardware Initialization**:
+   - `server/static/camera.html`: Added automatic fallback to `{ video: true, audio: false }` if mobile browsers reject `{ facingMode: { ideal: 'environment' } }`.
+   - Added automatic HTTP-to-HTTPS upgrade script in `<head>` so smartphones always run in a Secure Context where `navigator.mediaDevices.getUserMedia` is permitted.
+4. **FastAPI Cloud HTTPS Enforcement**:
+   - `server/main.py`: Added `enforce_cloud_https` middleware to automatically 301-redirect any incoming HTTP requests on Render to HTTPS.
+

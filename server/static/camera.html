@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PATCHSENSE — Mobile Edge Sensing Unit</title>
+  <script>
+    if (location.protocol === 'http:' && (location.hostname.includes('render.com') || location.hostname.includes('onrender.com') || (!location.hostname.includes('192.168.') && !location.hostname.includes('10.') && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'))) {
+      location.replace('https://' + location.host + location.pathname + location.search);
+    }
+  </script>
   <style>
     :root {
       --bg: #0b0f19;
@@ -427,12 +432,11 @@
   </div>
 
   <script>
-    const host = window.location.hostname || 'localhost';
-    const port = window.location.port || '8000';
+    const host = window.location.host || 'localhost:8000';
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const INGEST_WS_URL = `${wsProtocol}//${host}:${port}/ws/ingest`;
-    const GPS_WS_URL = `${wsProtocol}//${host}:${port}/ws/gps`;
-    const LIVE_WS_URL = `${wsProtocol}//${host}:${port}/ws/live`;
+    const INGEST_WS_URL = `${wsProtocol}//${host}/ws/ingest`;
+    const GPS_WS_URL = `${wsProtocol}//${host}/ws/gps`;
+    const LIVE_WS_URL = `${wsProtocol}//${host}/ws/live`;
 
     let videoEl = document.getElementById('videoElement');
     let captureCanvas = document.getElementById('captureCanvas');
@@ -478,8 +482,13 @@
 
     // 1. Initialize Camera
     async function initCamera() {
-      // Check for insecure HTTP on external IP
-      if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      // Check for insecure HTTP on external IP (for local LAN testing only)
+      const isCloud = location.protocol === 'https:' || 
+                      location.hostname.includes('render.com') || 
+                      location.hostname.includes('onrender.com') ||
+                      (!location.hostname.includes('192.168.') && !location.hostname.includes('10.') && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
+
+      if (!isCloud && location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         const httpsUrl = `https://${location.hostname}:8443/camera`;
         const banner = document.getElementById('httpsWarning');
         const link = document.getElementById('httpsLink');
@@ -487,6 +496,9 @@
           link.href = httpsUrl;
           banner.style.display = 'block';
         }
+      } else {
+        const banner = document.getElementById('httpsWarning');
+        if (banner) banner.style.display = 'none';
       }
 
       if (isSimMode) return;
@@ -497,7 +509,14 @@
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.warn('navigator.mediaDevices.getUserMedia not available (non-HTTPS)');
-        showPhoneToast("Real camera blocked on HTTP. Switched to Sim Road (or use HTTPS :8443).", "error");
+        if (isCloud && location.protocol === 'http:') {
+          location.replace('https://' + location.host + location.pathname + location.search);
+          return;
+        }
+        const msg = isCloud 
+          ? "Camera hardware not accessible. Switched to Simulated Road Demo." 
+          : "Real camera blocked on HTTP. Please use HTTPS link (or Demo Road).";
+        showPhoneToast(msg, "warning");
         toggleSimMode();
         return;
       }
@@ -511,7 +530,13 @@
           },
           audio: false
         };
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (firstErr) {
+          console.warn("Retrying with simple video:true constraints:", firstErr);
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
         videoEl.srcObject = currentStream;
         videoEl.setAttribute('playsinline', '');
         videoEl.setAttribute('webkit-playsinline', '');
@@ -760,6 +785,9 @@
     // 4. WebSocket Streaming
     function connectWebSockets() {
       try {
+        if (ingestWs && (ingestWs.readyState === WebSocket.OPEN || ingestWs.readyState === WebSocket.CONNECTING)) {
+          return;
+        }
         ingestWs = new WebSocket(INGEST_WS_URL);
         ingestWs.binaryType = 'arraybuffer';
         ingestWs.onopen = () => {
@@ -789,43 +817,52 @@
         };
         ingestWs.onerror = (e) => {
           console.error("Ingest WS error:", e);
-          showPhoneToast("Server connection error. Verify Wi-Fi and SSL bypass.", "error");
+          const isCloud = window.location.protocol === 'https:' || window.location.hostname.includes('render.com') || window.location.hostname.includes('onrender.com');
+          if (isCloud) {
+            showPhoneToast("Connecting to Cloud AI Engine...", "info");
+          } else {
+            showPhoneToast("Server connection error. Verify Wi-Fi or server status.", "error");
+          }
         };
         ingestWs.onclose = () => {
           console.log("[Ingest WS] Disconnected.");
           updateStatus(false);
-          if (isStreaming) setTimeout(connectWebSockets, 2000);
+          if (isStreaming) setTimeout(connectWebSockets, 1500);
         };
       } catch (e) {
         console.error("Ingest WS exception:", e);
       }
 
       try {
-        gpsWs = new WebSocket(GPS_WS_URL);
+        if (!gpsWs || gpsWs.readyState === WebSocket.CLOSED) {
+          gpsWs = new WebSocket(GPS_WS_URL);
+        }
       } catch (e) {
         console.error("GPS WS error:", e);
       }
 
       try {
-        liveWs = new WebSocket(LIVE_WS_URL);
-        liveWs.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === "LIVE_FRAME" && (data.is_mobile || data.bus_id === "MOBILE-CAM")) {
-              if (showAiOverlay) {
-                updateLivePerceptionHUD(data);
+        if (!liveWs || liveWs.readyState === WebSocket.CLOSED) {
+          liveWs = new WebSocket(LIVE_WS_URL);
+          liveWs.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === "LIVE_FRAME" && (data.is_mobile || data.bus_id === "MOBILE-CAM")) {
+                if (showAiOverlay) {
+                  updateLivePerceptionHUD(data);
+                }
+              } else if (data.type === "NEW_DETECTION") {
+                const det = data.detection;
+                // CRITICAL: ONLY alert for hazards detected by THIS phone's camera!
+                if (det && (det.bus_id === "MOBILE-CAM" || det.is_mobile)) {
+                  onHazardDetected(det);
+                }
+              } else if (data.type === "MOBILE_FOCUS_UPDATE") {
+                syncProblemFocusUI(data.focus);
               }
-            } else if (data.type === "NEW_DETECTION") {
-              const det = data.detection;
-              // CRITICAL: ONLY alert for hazards detected by THIS phone's camera!
-              if (det && (det.bus_id === "MOBILE-CAM" || det.is_mobile)) {
-                onHazardDetected(det);
-              }
-            } else if (data.type === "MOBILE_FOCUS_UPDATE") {
-              syncProblemFocusUI(data.focus);
-            }
-          } catch(e) {}
-        };
+            } catch(e) {}
+          };
+        }
       } catch (e) {
         console.error("Live WS error:", e);
       }

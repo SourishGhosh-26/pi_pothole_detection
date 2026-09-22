@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BEL UrbanSense — AI-Powered Mobile Urban Intelligence Platform</title>
   
+  <script>
+    if (location.protocol === 'http:' && (location.hostname.includes('render.com') || location.hostname.includes('onrender.com'))) {
+      location.replace('https://' + location.host + location.pathname + location.search);
+    }
+  </script>
+  
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -783,38 +789,46 @@
           <p class="text-slate-300 mb-1.5 font-medium">1. Open this URL on your phone's browser (Chrome / Safari):</p>
           <div class="flex items-center gap-2">
             <div class="flex-1 p-3 bg-slate-950 rounded-xl border border-cyan-500/40 font-mono text-cyan-300 break-all select-all text-sm font-bold shadow-inner" id="mobileNodeUrl">
-              Loading Wi-Fi Address...
+              Loading Camera Link...
             </div>
             <button onclick="copyMobileUrl()" class="px-3 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition flex items-center gap-1 flex-shrink-0" title="Copy URL">
               <i data-lucide="copy" class="w-4 h-4"></i>
               <span id="copyBtnText">Copy</span>
             </button>
+            <a id="btnOpenMobileNow" href="/camera" target="_blank" class="px-3 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition flex items-center gap-1.5 flex-shrink-0" title="Open Camera">
+              <i data-lucide="external-link" class="w-4 h-4"></i>
+              <span>Launch</span>
+            </a>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1">Make sure your phone is connected to the same Wi-Fi network as this laptop.</p>
+          <p class="text-[11px] text-slate-400 mt-1" id="mobileModalSubtext">Works on any smartphone over 4G, 5G, or Wi-Fi.</p>
         </div>
 
-        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5">
+        <!-- Render / Cloud HTTPS Card (Active on Render) -->
+        <div id="cloudSslBanner" class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1">
+          <div class="flex items-center gap-2 font-bold text-xs text-emerald-200">
+            <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0 text-emerald-400"></i>
+            <span>Live Cloud Deployment (Render HTTPS Active)</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-emerald-200/90">
+            Your camera node is hosted on Render with trusted SSL green-lock encryption. Open this link on any smartphone anywhere in the world and tap <strong class="text-white">START MOBILE CAMERA STREAM</strong>. Zero Wi-Fi restrictions or SSL bypasses required!
+          </p>
+        </div>
+
+        <!-- Local Self-Signed SSL Helper (Only shown when running on local IP with self-signed SSL) -->
+        <div id="localSslHelper" class="hidden p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5">
           <div class="flex items-center gap-2 font-bold text-xs text-amber-200">
             <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0 text-amber-400"></i>
-            <span>Why HTTPS & Port 8443 is required:</span>
+            <span>Offline Local Wi-Fi Mode:</span>
           </div>
           <p class="text-[11px] leading-relaxed text-amber-200/90">
-            Mobile browsers (Android Chrome & iOS Safari) <strong>block camera access on plain HTTP</strong> for privacy. 
-            Port 8443 provides the required secure SSL context.
+            When running on local laptop Wi-Fi with self-signed SSL: If Chrome warns <em>"Connection not private"</em> &rarr; tap <strong>Advanced &rarr; Proceed (unsafe)</strong> &rarr; Allow camera permissions.
           </p>
-          <div class="mt-2 pt-2 border-t border-amber-500/20 text-[11px] space-y-1">
-            <p class="font-bold text-white">How to bypass SSL warning on phone:</p>
-            <p>1. When Chrome says <em>"Your connection is not private"</em> &rarr; tap <strong>Advanced</strong>.</p>
-            <p>2. Tap <strong>Proceed to 192.168.1.8 (unsafe)</strong>.</p>
-            <p>3. Tap <strong>Allow</strong> for Camera & Location permissions.</p>
-            <p>4. Tap <strong class="text-emerald-300">START MOBILE CAMERA STREAM</strong> on your phone!</p>
-          </div>
         </div>
 
-        <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] flex items-center justify-between">
-          <span class="text-slate-400">Simulated Road Mode Fallback (HTTP):</span>
-          <a id="mobileHttpFallback" href="http://192.168.1.8:8000/camera" target="_blank" class="text-blue-400 hover:text-blue-300 font-mono underline">
-            http://192.168.1.8:8000/camera
+        <div id="fallbackHttpBox" class="hidden p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] flex items-center justify-between">
+          <span class="text-slate-400">Simulated Demo Road (HTTP):</span>
+          <a id="mobileHttpFallback" href="/camera" target="_blank" class="text-blue-400 hover:text-blue-300 font-mono underline">
+            /camera
           </a>
         </div>
       </div>
@@ -3088,15 +3102,56 @@
     async function openMobileModal() {
       const modal = document.getElementById('mobileModal');
       const urlBox = document.getElementById('mobileNodeUrl');
+      const btnLaunch = document.getElementById('btnOpenMobileNow');
+      const cloudBanner = document.getElementById('cloudSslBanner');
+      const localHelper = document.getElementById('localSslHelper');
+      const fallbackBox = document.getElementById('fallbackHttpBox');
+      const subtext = document.getElementById('mobileModalSubtext');
       const httpFallback = document.getElementById('mobileHttpFallback');
+
       modal.classList.remove('hidden');
+
+      // 1. Immediately detect if running on Render / Cloud HTTPS
+      const isCloudEnv = window.location.protocol === 'https:' || 
+                         window.location.hostname.includes('render.com') || 
+                         window.location.hostname.includes('onrender.com') ||
+                         (!window.location.hostname.includes('192.168.') && !window.location.hostname.includes('10.') && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+
+      if (isCloudEnv) {
+        const cloudCameraUrl = `${window.location.origin}/camera`;
+        urlBox.innerText = cloudCameraUrl;
+        if (btnLaunch) {
+          btnLaunch.href = cloudCameraUrl;
+          btnLaunch.classList.remove('hidden');
+        }
+        if (cloudBanner) cloudBanner.classList.remove('hidden');
+        if (localHelper) localHelper.classList.add('hidden');
+        if (fallbackBox) fallbackBox.classList.add('hidden');
+        if (subtext) subtext.innerText = "Hosted on Render with SSL. Open on any smartphone worldwide (4G/5G/Wi-Fi)!";
+        return;
+      }
+
+      // 2. Local LAN Wi-Fi fallback for offline demo
+      if (cloudBanner) cloudBanner.classList.add('hidden');
+      if (localHelper) localHelper.classList.remove('hidden');
+      if (fallbackBox) fallbackBox.classList.remove('hidden');
+      if (subtext) subtext.innerText = "Works over local Wi-Fi router. Connect phone to same Wi-Fi.";
 
       try {
         const res = await fetch(`${API_BASE}/api/network_info`);
         if (res.ok) {
           const info = await res.json();
+          if (info.is_cloud) {
+            urlBox.innerText = info.https_camera_url || `${window.location.origin}/camera`;
+            if (btnLaunch) btnLaunch.href = urlBox.innerText;
+            if (cloudBanner) cloudBanner.classList.remove('hidden');
+            if (localHelper) localHelper.classList.add('hidden');
+            if (fallbackBox) fallbackBox.classList.add('hidden');
+            return;
+          }
           if (info.lan_ip) {
             urlBox.innerText = info.https_camera_url || `https://${info.lan_ip}:8443/camera`;
+            if (btnLaunch) btnLaunch.href = urlBox.innerText;
             if (httpFallback) {
               httpFallback.href = info.http_camera_url || `http://${info.lan_ip}:8000/camera`;
               httpFallback.innerText = info.http_camera_url || `http://${info.lan_ip}:8000/camera`;
@@ -3110,6 +3165,7 @@
 
       const host = window.location.hostname || 'localhost';
       urlBox.innerText = `https://${host}:8443/camera`;
+      if (btnLaunch) btnLaunch.href = urlBox.innerText;
       if (httpFallback) {
         httpFallback.href = `http://${host}:8000/camera`;
         httpFallback.innerText = `http://${host}:8000/camera`;
