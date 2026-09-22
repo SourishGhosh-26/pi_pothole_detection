@@ -245,3 +245,28 @@ When hosted on Render (`https://bel-urbansense.onrender.com`), attempting to lau
 4. **FastAPI Cloud HTTPS Enforcement**:
    - `server/main.py`: Added `enforce_cloud_https` middleware to automatically 301-redirect any incoming HTTP requests on Render to HTTPS.
 
+---
+
+## 7. Mobile Camera Access Blocked Resolution & Self-Healing Camera Engine
+
+### Problem Addressed
+When accessing `https://bel-urbansense.onrender.com/camera` on a smartphone, users encountered **"Camera access blocked"**:
+1. **Accidental Denial**: If the browser's camera permission prompt was ever dismissed or tapped "Block", mobile Chrome / Safari permanently remembers "Block" for the origin without prompting again.
+2. **User Activation Requirement**: Modern mobile browsers (iOS Safari, Android Chrome) reject `getUserMedia()` calls invoked during page load without a direct user tap/gesture.
+3. **Sticky Simulation Mode**: When camera access was rejected, the client switched to simulated road mode and never retried the real camera when "START MOBILE CAMERA STREAM" was pressed.
+4. **In-App Browser Webviews**: Opening the link inside WhatsApp or Gmail webview caused immediate failure because webviews restrict camera hardware access.
+
+### Solutions Implemented
+1. **Interactive User-Gesture Activation Overlay**:
+   - Added `#cameraPromptOverlay` centered on the viewfinder: `[ 📷 TAP TO ENABLE CAMERA ]`. Allows users to trigger `getUserMedia()` cleanly through an explicit user touch event.
+2. **Interactive 5-Second Unblocker Guide**:
+   - Added `#cameraBlockedOverlay` with illustrated, device-specific instructions for Android Chrome (tap 🔒 lock &rarr; Permissions &rarr; Camera &rarr; Allow) and iOS Safari (tap aA &rarr; Website Settings &rarr; Camera &rarr; Allow).
+   - Added `[ 🔄 I've Allowed Permission — Retry Camera ]` button to immediately re-request hardware without reloading.
+3. **In-App Browser Detection**:
+   - Added `#inAppBrowserBanner` that detects WhatsApp, Instagram, or Gmail webviews and instructs the user to tap `⋮` &rarr; `Open in Chrome / Safari`.
+4. **Multi-Tier Constraint Fallbacks**:
+   - Implemented `acquireCameraStream()` trying `640x480 environment` &rarr; `basic environment` &rarr; `exact environment` &rarr; `any video track`.
+5. **FastAPI Permissions-Policy Response Headers**:
+   - Updated `server/main.py` middleware to send `Permissions-Policy: camera=*, geolocation=*, microphone=*` and `Feature-Policy: camera *; geolocation *; microphone *`.
+
+
