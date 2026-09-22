@@ -61,7 +61,10 @@ async def enforce_cloud_https(request: Request, call_next):
     if proto == "http" and ("onrender.com" in host or "render.com" in host):
         query = f"?{request.url.query}" if request.url.query else ""
         return RedirectResponse(url=f"https://{host}{request.url.path}{query}", status_code=301)
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["Permissions-Policy"] = "camera=*, geolocation=*, microphone=*"
+    response.headers["Feature-Policy"] = "camera *; geolocation *; microphone *"
+    return response
 
 # Mount static files for detection snapshots
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")

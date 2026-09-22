@@ -310,6 +310,11 @@
     </div>
   </header>
 
+  <!-- In-App Browser (WhatsApp / Gmail) Warning Banner -->
+  <div id="inAppBrowserBanner" style="display:none; background: #f59e0b; color: #0f172a; padding: 10px 14px; font-size: 0.78rem; font-weight: 700; text-align: center; border-bottom: 2px solid rgba(0,0,0,0.2);">
+    ⚠️ In-App Browser Detected (WhatsApp/Gmail). Real camera access is blocked in webviews. Tap the <strong>3 dots (⋮)</strong> at top right &rarr; choose <strong>"Open in Chrome"</strong> or <strong>"Open in Safari"</strong>.
+  </div>
+
   <!-- HTTPS Security Banner for Mobile Browsers -->
   <div id="httpsWarning" style="display:none; background: #dc2626; color: white; padding: 12px 16px; margin: 10px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);">
     <p style="font-size: 0.85rem; font-weight: 700;">🔒 Mobile Browser Security Notice</p>
@@ -327,6 +332,56 @@
     <canvas id="captureCanvas" style="display:none;"></canvas>
     <!-- Live AI Vision Overlay with YOLO Bounding Boxes & Perception HUD -->
     <img id="aiProcessedFeed" style="display:none; width:100%; height:100%; object-fit:cover; position:absolute; inset:0; z-index:2; pointer-events:none;" />
+
+    <!-- 1. Tap-to-Activate Real Camera User-Gesture Overlay -->
+    <div id="cameraPromptOverlay" style="display:none; position:absolute; inset:0; z-index:20; background:rgba(11,15,25,0.92); backdrop-filter:blur(8px); flex-direction:column; align-items:center; justify-content:center; padding:16px; text-align:center;">
+      <div style="font-size:2.2rem; margin-bottom:8px;">📷</div>
+      <div style="font-size:1rem; font-weight:800; color:#f3f4f6; margin-bottom:4px;">Mobile Camera Ready</div>
+      <p style="font-size:0.75rem; color:#9ca3af; max-width:280px; margin-bottom:14px; line-height:1.4;">Tap below to grant camera permission and activate live road sensing stream.</p>
+      <button type="button" onclick="requestRealCamera(true)" class="btn-primary" style="padding:11px 22px; font-size:0.88rem; width:auto; border-radius:8px;">
+        👉 TAP TO ENABLE CAMERA
+      </button>
+    </div>
+
+    <!-- 2. Interactive "Camera Permission Blocked" Unblocker Card -->
+    <div id="cameraBlockedOverlay" style="display:none; position:absolute; inset:0; z-index:25; background:rgba(11,15,25,0.96); backdrop-filter:blur(10px); flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; overflow-y:auto;">
+      <div style="font-size:2rem; margin-bottom:4px;">🚫</div>
+      <div style="font-size:0.95rem; font-weight:800; color:#ef4444; margin-bottom:4px;">Camera Permission Blocked</div>
+      <p style="font-size:0.72rem; color:#cbd5e1; margin-bottom:8px; line-height:1.3;">Your mobile browser has camera access blocked. Quick 5-second fix:</p>
+
+      <div style="background:rgba(30,41,59,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:9px 12px; text-align:left; font-size:0.72rem; color:#e2e8f0; width:100%; max-width:320px; margin-bottom:10px; line-height:1.45;">
+        <div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">📱 For Google Chrome (Android):</div>
+        1. Tap the <strong>🔒 Lock</strong> or <strong>⚙️ Tune</strong> icon next to the URL in address bar.<br>
+        2. Tap <strong>Permissions</strong> (or <strong>Site settings</strong>) &rarr; <strong>Camera</strong> &rarr; Select <strong>Allow</strong>.<br>
+        <div style="font-weight:700; color:#f472b6; margin:6px 0 3px;">🍎 For Safari (iPhone / iOS):</div>
+        1. Tap the <strong>aA</strong> icon on left of address bar.<br>
+        2. Tap <strong>Website Settings</strong> &rarr; <strong>Camera</strong> &rarr; Select <strong>Allow</strong>.
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:300px;">
+        <button type="button" onclick="requestRealCamera(true)" class="btn-primary" style="padding:10px; font-size:0.82rem; background:linear-gradient(135deg, #10b981, #059669); border-radius:8px;">
+          🔄 I've Allowed Permission — Retry Camera
+        </button>
+        <button type="button" onclick="activateSimDemoFallback()" class="btn-secondary" style="padding:8px; font-size:0.75rem; border-radius:8px;">
+          🎮 Switch to Demo Simulated Road
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Camera Busy / In-Use Overlay -->
+    <div id="cameraBusyOverlay" style="display:none; position:absolute; inset:0; z-index:25; background:rgba(11,15,25,0.96); backdrop-filter:blur(10px); flex-direction:column; align-items:center; justify-content:center; padding:16px; text-align:center;">
+      <div style="font-size:2rem; margin-bottom:4px;">⚠️</div>
+      <div style="font-size:0.95rem; font-weight:800; color:#f59e0b; margin-bottom:4px;">Camera In Use By Another App</div>
+      <p style="font-size:0.72rem; color:#cbd5e1; margin-bottom:12px; line-height:1.3;">Another browser tab or mobile app is currently using your camera hardware. Please close other camera apps or tabs.</p>
+      <div style="display:flex; flex-direction:column; gap:8px; width:100%; max-width:280px;">
+        <button type="button" onclick="requestRealCamera(true)" class="btn-primary" style="padding:9px; font-size:0.82rem; border-radius:8px;">
+          🔄 Retry Camera Access
+        </button>
+        <button type="button" onclick="activateSimDemoFallback()" class="btn-secondary" style="padding:8px; font-size:0.75rem; border-radius:8px;">
+          🎮 Switch to Simulated Road Demo
+        </button>
+      </div>
+    </div>
 
     <div class="hud-overlay" style="z-index: 10;">
       <div class="hud-top-bar">
@@ -480,14 +535,83 @@
       }, 3500);
     }
 
-    // 1. Initialize Camera
-    async function initCamera() {
-      // Check for insecure HTTP on external IP (for local LAN testing only)
+    // Overlays helper functions
+    function hideCameraOverlays() {
+      const p = document.getElementById('cameraPromptOverlay');
+      const b = document.getElementById('cameraBlockedOverlay');
+      const busy = document.getElementById('cameraBusyOverlay');
+      if (p) p.style.display = 'none';
+      if (b) b.style.display = 'none';
+      if (busy) busy.style.display = 'none';
+    }
+
+    function showCameraPromptOverlay() {
+      hideCameraOverlays();
+      const p = document.getElementById('cameraPromptOverlay');
+      if (p) p.style.display = 'flex';
+    }
+
+    function showCameraBlockedOverlay(reason = 'blocked', detail = '') {
+      hideCameraOverlays();
+      if (reason === 'busy') {
+        const busy = document.getElementById('cameraBusyOverlay');
+        if (busy) busy.style.display = 'flex';
+      } else {
+        const b = document.getElementById('cameraBlockedOverlay');
+        if (b) b.style.display = 'flex';
+      }
+    }
+
+    function activateSimDemoFallback() {
+      hideCameraOverlays();
+      if (!isSimMode) {
+        toggleSimMode();
+      }
+      showPhoneToast("Switched to Simulated Road Demo mode.", "info");
+    }
+
+    // Multi-tier camera constraints acquisition
+    async function acquireCameraStream(facing) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("getUserMedia not supported in this browser environment");
+      }
+
+      const attempts = [
+        // 1. Ideal facing mode with 640x480 resolution
+        { video: { facingMode: { ideal: facing }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+        // 2. Ideal facing mode without resolution constraints
+        { video: { facingMode: { ideal: facing } }, audio: false },
+        // 3. Exact facing mode
+        { video: { facingMode: facing }, audio: false },
+        // 4. Any available video track (universal fallback)
+        { video: true, audio: false }
+      ];
+
+      let lastErr = null;
+      for (const constraint of attempts) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraint);
+          if (stream) return stream;
+        } catch (e) {
+          lastErr = e;
+          // If permission is definitively blocked by user or system, stop iterating constraints
+          if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError' || e.name === 'SecurityError') {
+            throw e;
+          }
+          console.warn("Retrying camera with next fallback constraint:", e.name);
+        }
+      }
+      throw lastErr || new Error("Unable to access video device");
+    }
+
+    // 1. Initialize Real Camera
+    async function requestRealCamera(isUserGesture = false) {
       const isCloud = location.protocol === 'https:' || 
                       location.hostname.includes('render.com') || 
                       location.hostname.includes('onrender.com') ||
                       (!location.hostname.includes('192.168.') && !location.hostname.includes('10.') && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1');
 
+      // Local LAN HTTP check
       if (!isCloud && location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         const httpsUrl = `https://${location.hostname}:8443/camera`;
         const banner = document.getElementById('httpsWarning');
@@ -501,56 +625,47 @@
         if (banner) banner.style.display = 'none';
       }
 
-      if (isSimMode) return;
+      // Reset sim mode
+      isSimMode = false;
+      simCanvas.style.display = 'none';
+
       if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+        try {
+          currentStream.getTracks().forEach(track => track.stop());
+        } catch(e) {}
         currentStream = null;
       }
-      
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.warn('navigator.mediaDevices.getUserMedia not available (non-HTTPS)');
+        console.warn('navigator.mediaDevices.getUserMedia not available');
         if (isCloud && location.protocol === 'http:') {
           location.replace('https://' + location.host + location.pathname + location.search);
-          return;
+          return false;
         }
-        const msg = isCloud 
-          ? "Camera hardware not accessible. Switched to Simulated Road Demo." 
-          : "Real camera blocked on HTTP. Please use HTTPS link (or Demo Road).";
-        showPhoneToast(msg, "warning");
-        toggleSimMode();
-        return;
+        showPhoneToast("Camera API not accessible. Check browser permissions or use HTTPS.", "error");
+        showCameraBlockedOverlay('blocked');
+        return false;
       }
 
       try {
-        const constraints = {
-          video: {
-            facingMode: { ideal: currentFacingMode },
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-          },
-          audio: false
-        };
-        try {
-          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (firstErr) {
-          console.warn("Retrying with simple video:true constraints:", firstErr);
-          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
-
+        currentStream = await acquireCameraStream(currentFacingMode);
         videoEl.srcObject = currentStream;
+        videoEl.muted = true;
+        videoEl.playsInline = true;
         videoEl.setAttribute('playsinline', '');
         videoEl.setAttribute('webkit-playsinline', '');
         videoEl.setAttribute('autoplay', '');
-        videoEl.muted = true;
+
         try {
           await videoEl.play();
         } catch (playErr) {
-          console.warn("video.play() awaiting user gesture:", playErr);
+          console.warn("video.play() deferred until user touch:", playErr);
         }
+
         videoEl.style.display = 'block';
         simCanvas.style.display = 'none';
-        const warning = document.getElementById('httpsWarning');
-        if (warning) warning.style.display = 'none';
+        hideCameraOverlays();
+
         const badge = document.getElementById('camSourceBadge');
         if (badge) {
           badge.innerText = "🟢 REAL CAMERA";
@@ -558,16 +673,32 @@
           badge.style.color = "#10b981";
           badge.style.background = "rgba(16,185,129,0.25)";
         }
+        const btnSimText = document.getElementById('btnSimText');
+        if (btnSimText) btnSimText.innerText = "Switch to Demo Simulated Road";
+
+        showPhoneToast("Real Phone Camera connected successfully!", "success");
+        return true;
       } catch (err) {
-        console.warn('Camera access error:', err);
-        showPhoneToast(`Camera access blocked: ${err.name || 'Denied'}. Using Sim Road.`, "error");
-        toggleSimMode();
+        console.warn('Camera request error:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' || err.name === 'SecurityError') {
+          showCameraBlockedOverlay('blocked');
+          showPhoneToast("Camera access blocked by browser. Follow instructions to unlock.", "error");
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          showCameraBlockedOverlay('busy');
+          showPhoneToast("Camera hardware is busy in another app or tab.", "warning");
+        } else {
+          showCameraBlockedOverlay('error', err.message);
+          showPhoneToast(`Camera error: ${err.name || 'Unavailable'}.`, "error");
+        }
+        return false;
       }
     }
 
+    const initCamera = requestRealCamera;
+
     function switchCamera() {
       currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-      initCamera();
+      requestRealCamera(true);
     }
 
     // 2. Simulated Road Canvas
@@ -694,10 +825,13 @@
       const badge = document.getElementById('camSourceBadge');
       const aiImg = document.getElementById('aiProcessedFeed');
       if (aiImg) aiImg.style.display = 'none';
+      hideCameraOverlays();
 
       if (isSimMode) {
         if (currentStream) {
-          currentStream.getTracks().forEach(t => t.stop());
+          try {
+            currentStream.getTracks().forEach(t => t.stop());
+          } catch(e) {}
           currentStream = null;
         }
         videoEl.style.display = 'none';
@@ -712,13 +846,7 @@
         drawSimRoad();
       } else {
         if (btnSimText) btnSimText.innerText = "Switch to Demo Simulated Road";
-        if (badge) {
-          badge.innerText = "🟢 REAL CAMERA";
-          badge.style.borderColor = "#10b981";
-          badge.style.color = "#10b981";
-          badge.style.background = "rgba(16,185,129,0.25)";
-        }
-        initCamera();
+        requestRealCamera(true);
       }
     }
 
@@ -1175,8 +1303,12 @@
       if (isStreaming) {
         // User gesture: ensure video is running
         if (!isSimMode) {
-          if (!currentStream || !currentStream.active) {
-            await initCamera();
+          if (!currentStream || !currentStream.active || !videoEl.srcObject) {
+            const ok = await requestRealCamera(true);
+            if (!ok) {
+              isStreaming = false;
+              return;
+            }
           }
           if (videoEl && videoEl.srcObject) {
             try {
@@ -1209,10 +1341,47 @@
       }
     }
 
-    // Start on load
-    window.addEventListener('DOMContentLoaded', () => {
-      initCamera();
+    // Start on load with permission detection & in-app browser support
+    window.addEventListener('DOMContentLoaded', async () => {
       startGpsTracking();
+
+      // Check for In-App Browser (WhatsApp, Instagram, Gmail, etc.)
+      const isInApp = /FBAN|FBAV|Instagram|WhatsApp|Line|Telegram|GSA/i.test(navigator.userAgent);
+      if (isInApp) {
+        const banner = document.getElementById('inAppBrowserBanner');
+        if (banner) banner.style.display = 'block';
+      }
+
+      // Check permission state if Permissions API is supported
+      let permState = null;
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const res = await navigator.permissions.query({ name: 'camera' });
+          permState = res.state;
+          res.onchange = () => {
+            if (res.state === 'granted') {
+              requestRealCamera(true);
+            } else if (res.state === 'denied') {
+              showCameraBlockedOverlay('blocked');
+            }
+          };
+        } catch(e) {}
+      }
+
+      if (permState === 'denied') {
+        showCameraBlockedOverlay('blocked');
+      } else if (permState === 'granted') {
+        requestRealCamera(false);
+      } else {
+        // Try gentle initial request; if browser requires user gesture, display tap prompt
+        const ok = await requestRealCamera(false);
+        if (!ok) {
+          const blocked = document.getElementById('cameraBlockedOverlay');
+          if (!blocked || blocked.style.display === 'none') {
+            showCameraPromptOverlay();
+          }
+        }
+      }
     });
   </script>
 </body>
